@@ -341,3 +341,57 @@ def compute_dice_streamlines(bundle_1, bundle_2):
         dice = np.nan
 
     return dice, streamlines_intersect, streamlines_union_robust
+
+
+def ICC_rep_anova(Y):
+    """
+    the data Y are entered as a 'table' ie subjects are in rows and repeated
+    measures in columns
+    One Sample Repeated measure ANOVA
+    Y = XB + E with X = [FaTor / Subjects]
+    https://github.com/nipy/nipype/blob/8946bcab9d0e2f24e5364e42d4a7766e00237cb8/nipype/algorithms/icc.py
+    """
+
+    [nb_subjects, nb_conditions] = Y.shape
+    dfc = nb_conditions - 1
+    dfe = (nb_subjects - 1) * dfc
+    dfr = nb_subjects - 1
+
+    # Compute the repeated measure effect
+    # ------------------------------------
+
+    # Sum Square Total
+    mean_Y = np.mean(Y)
+    SST = ((Y - mean_Y) ** 2).sum()
+
+    # create the design matrix for the different levels
+    x = np.kron(np.eye(nb_conditions), np.ones((nb_subjects, 1)))  # sessions
+    x0 = np.tile(np.eye(nb_subjects), (nb_conditions, 1))  # subjects
+    X = np.hstack([x, x0])
+
+    # Sum Square Error
+    predicted_Y = np.dot(np.dot(np.dot(X, np.linalg.pinv(np.dot(X.T, X))), X.T), Y.flatten('F'))
+    residuals = Y.flatten('F') - predicted_Y
+    SSE = (residuals ** 2).sum()
+
+    residuals.shape = Y.shape
+
+    MSE = SSE / dfe
+
+    # Sum square session effect - between colums/sessions
+    SSC = ((np.mean(Y, 0) - mean_Y) ** 2).sum() * nb_subjects
+    MSC = SSC / dfc / nb_subjects
+
+    session_effect_F = MSC / MSE
+
+    # Sum Square subject effect - between rows/subjects
+    SSR = SST - SSC - SSE
+    MSR = SSR / dfr
+
+    # ICC(3,1) = (mean square subjeT - mean square error) / (mean square subjeT + (k-1)*-mean square error)
+    ICC = (MSR - MSE) / (MSR + dfc * MSE)
+
+    e_var = MSE  # variance of error
+    r_var = (MSR - MSE) / nb_conditions  # variance between subjects
+
+    return ICC, r_var, e_var, session_effect_F, dfc, dfe

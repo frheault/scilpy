@@ -85,7 +85,7 @@ def check_b0_threshold(force_b0_threshold, bvals_min):
                     '--force_b0_threshold was specified.'.format(bvals_min))
             else:
                 raise ValueError('The minimal bval is lesser than 0 or '
-                                 'greater than {}. This is highly ' +
+                                 'greater than {}. This is highly '
                                  'suspicious.\n'
                                  'Please check your data to ensure everything '
                                  'is correct.\n'
@@ -189,7 +189,7 @@ def mrtrix2fsl(mrtrix_filename, fsl_bval_filename=None,
                                filename_bvec=fsl_bvec_filename)
 
 
-def identify_shells(bvals, threshold=40.0):
+def identify_shells(bvals, threshold=40.0, roundCentroids=False, sort=False):
     """
     Guessing the shells from the b-values. Returns the list of shells and, for
     each b-value, the associated shell.
@@ -209,7 +209,10 @@ def identify_shells(bvals, threshold=40.0):
     threshold: float
         Limit value to consider that a b-value is on an existing shell. Above
         this limit, the b-value is placed on a new shell.
-    remove_b0
+    roundCentroids: bool
+        If true will round shell values to the nearest 10.
+    sort: bool
+        Sort centroids and shell_indices associated.
 
     Returns
     -------
@@ -237,6 +240,18 @@ def identify_shells(bvals, threshold=40.0):
                               (1, centroids.shape[0]))
 
     shell_indices = np.argmin(np.abs(bvals_for_diffs - centroids), axis=1)
+
+    if roundCentroids:
+        centroids = np.round(centroids, decimals=-1)
+
+    if sort:
+        sort_index = np.argsort(centroids)
+        sorted_centroids = np.zeros(centroids.shape)
+        sorted_indices = np.zeros(shell_indices.shape)
+        for i in range(len(centroids)):
+            sorted_centroids[i] = centroids[sort_index[i]]
+            sorted_indices[shell_indices == i] = sort_index[i]
+        return sorted_centroids, sorted_indices
 
     return centroids, shell_indices
 
@@ -361,3 +376,50 @@ def flip_fsl_gradient_sampling(bvecs_filename, bvecs_flipped_filename, axes):
         bvecs[axis, :] *= -1
 
     np.savetxt(bvecs_flipped_filename, bvecs, "%.8f")
+
+
+def swap_fsl_gradient_axis(bvecs_filename, bvecs_swapped_filename, axes):
+    """
+    Swap FSL bvecs
+
+    Parameters
+    ----------
+    bvecs_filename: str
+        Bvecs filename
+    bvecs_swapped_filename: str
+        Bvecs swapped filename
+    axes: list of int
+        List of axes to swap (e.g. [0, 1])
+    """
+
+    bvecs = np.loadtxt(bvecs_filename)
+    new_bvecs = np.zeros(bvecs.shape)
+    new_bvecs[axes[0], :] = bvecs[axes[1], :]
+    new_bvecs[axes[1], :] = bvecs[axes[0], :]
+
+    np.savetxt(bvecs_swapped_filename, new_bvecs, "%.8f")
+
+
+def swap_mrtrix_gradient_axis(bvecs_filename, bvecs_swapped_filename, axes):
+    """
+    Swap MRtrix bvecs
+
+    Parameters
+    ----------
+    bvecs_filename: str
+        Bvecs filename
+    bvecs_swapped_filename: str
+        Bvecs swapped filename
+    axes: list of int
+        List of axes to swap (e.g. [0, 1])
+    """
+
+    bvecs = np.loadtxt(bvecs_filename)
+    new_bvecs = np.zeros(bvecs.shape)
+
+    new_bvecs[:, axes[0]] = bvecs[:, axes[1]]
+    new_bvecs[:, axes[1]] = bvecs[:, axes[0]]
+
+    np.savetxt(bvecs_swapped_filename,
+               new_bvecs,
+               "%.8f %.8f %.8f %0.6f")

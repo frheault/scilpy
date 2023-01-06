@@ -21,7 +21,7 @@ sys.path.insert(1, os.path.abspath("../../scripts"))
 autodoc_mock_imports = ['numpy', 'dipy', 'fury', 'nibabel', "scipy", "h5py",
                         "scilpy.tractanalysis.grid_intersections",
                         "scilpy.tractanalysis.quick_tools",
-                        "sklearn", "scilpy.tractanalysis.streamlines_metrics",
+                        "scikit-learn", "scilpy.tractanalysis.streamlines_metrics",
                         "scilpy.tractanalysis.uncompress", "matplotlib"]
 
 # -- Project information -----------------------------------------------------

@@ -4,11 +4,13 @@ from copy import deepcopy
 import logging
 
 from dipy.data import get_sphere
-from dipy.reconst.shm import sf_to_sh
+from dipy.reconst.shm import sf_to_sh, sh_to_sf
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
+from scilpy.reconst.utils import find_order_from_nb_coeff
 import scilpy.tractanalysis.todi_util as todi_u
+
 
 MINIMUM_TODI_EPSILON = 1e-8
 GAUSSIAN_TRUNCATE = 2.0
@@ -37,7 +39,7 @@ class TrackOrientationDensityImaging(object):
         """
         assert len(img_shape) == 3
 
-        self.sphere = get_sphere(sphere_type)
+        self.sphere = get_sphere(name=sphere_type)
         self.nb_sphere_vts = len(self.sphere.vertices)
 
         self.img_shape = img_shape
@@ -100,6 +102,26 @@ class TrackOrientationDensityImaging(object):
 
         # Bincount of sphere id for each voxel
         self.todi = todi_bin_1d.reshape(todi_bin_shape)
+
+    def set_todi_from_sh(self, sh, mask, sh_basis, is_legacy=True):
+        """Set the TODI map.
+
+        Set the TODI map and mask from an already unraveled TODI map.
+
+        Parameters
+        ----------
+        sh: numpy.ndarray
+            Given SH volume for the TODI map.
+        mask : numpy.ndarray
+            Given volume mask for the TODI map.
+        """
+        self.mask = np.sum(sh, axis=-1).astype(bool)
+        indices = np.where(self.mask > 0)
+
+        sh_order = find_order_from_nb_coeff(sh.shape)
+        self.todi = sh_to_sf(sh[indices], self.sphere, sh_order_max=sh_order,
+                      basis_type=sh_basis, legacy=is_legacy)
+        self.mask = self.mask.flatten()
 
     def get_todi(self):
         return self.todi
@@ -308,6 +330,7 @@ class TrackOrientationDensityImaging(object):
             return np.reshape(img_unmasked, img_shape)
 
         logging.warning("WARNING : Volume might already be in 3d shape")
+        print('*******', img_voxelly_masked.shape)
         return img_voxelly_masked
 
     def compute_distance_to_peak(self, peak_img, normalize_count=True,

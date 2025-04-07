@@ -183,6 +183,7 @@ def reconstruct_streamlines_from_hdf5(hdf5_group):
         List of streamlines.
     """
     if 'data' not in hdf5_group:
+        return []
         raise ValueError("Expecting data in bundle's group.")
 
     data = np.array(hdf5_group['data']).flatten()

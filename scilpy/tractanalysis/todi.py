@@ -103,7 +103,7 @@ class TrackOrientationDensityImaging(object):
         # Bincount of sphere id for each voxel
         self.todi = todi_bin_1d.reshape(todi_bin_shape)
 
-    def set_todi_from_sh(self, sh, mask, sh_basis, is_legacy=True):
+    def set_todi_from_sh(self, sh, sh_basis, is_legacy=True):
         """Set the TODI map.
 
         Set the TODI map and mask from an already unraveled TODI map.
@@ -120,7 +120,7 @@ class TrackOrientationDensityImaging(object):
 
         sh_order = find_order_from_nb_coeff(sh.shape)
         self.todi = sh_to_sf(sh[indices], self.sphere, sh_order_max=sh_order,
-                      basis_type=sh_basis, legacy=is_legacy)
+                             basis_type=sh_basis, legacy=is_legacy)
         self.mask = self.mask.flatten()
 
     def get_todi(self):

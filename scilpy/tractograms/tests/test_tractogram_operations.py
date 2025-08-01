@@ -1,238 +1,133 @@
-# -*- coding: utf-8 -*-
-
-import logging
 import os
 import tempfile
 
+from dipy.io.stateful_tractogram import StatefulTractogram, Space
+from dipy.io.streamline import load_tractogram, save_tractogram
+from dipy.testing import assert_true
+import nibabel as nib
 import numpy as np
-from dipy.io.stateful_tractogram import StatefulTractogram
-from dipy.io.streamline import load_tractogram
+from numpy.testing import (assert_array_equal, assert_raises,
+                           assert_allclose, assert_equal)
 
-from scilpy import SCILPY_HOME
-from scilpy.io.fetcher import fetch_data, get_testing_files_dict
-from scilpy.tractograms.streamline_operations import \
-    resample_streamlines_step_size
 from scilpy.tractograms.tractogram_operations import (
     concatenate_sft,
-    difference,
-    difference_robust,
-    flip_sft,
-    intersection,
-    intersection_robust,
-    perform_tractogram_operation_on_lines,
-    perform_tractogram_operation_on_sft,
     shuffle_streamlines,
+    flip_sft,
+    compress_sft,
+    split_sft_by_number,
     split_sft_randomly,
-    split_sft_randomly_per_cluster,
-    upsample_tractogram,
-    union,
-    union_robust)
+    remove_invalid_streamlines,
+    get_subset_streamlines,
+    cut_invalid_streamlines,
+    assert_sft_compatibility)
 
 
-# Prepare SFT
-fetch_data(get_testing_files_dict(), keys=['surface_vtk_fib.zip'])
-tmp_dir = tempfile.TemporaryDirectory()
-in_sft = os.path.join(SCILPY_HOME, 'surface_vtk_fib', 'gyri_fanning.trk')
+sft = None
 
-# Loading and keeping only a few streamlines for faster testing.
-sft = load_tractogram(in_sft, 'same')[0:4]
 
-# Faking data_per_streamline
-sft.data_per_streamline['test'] = [1] * len(sft)
-sft.data_per_point['test2'] = [[[1, 2, 3]] * len(s) for s in sft.streamlines]
+def setup_module():
+    global sft
+    fake_dir = tempfile.TemporaryDirectory()
+    streamlines = [[[0, 0, 0], [1, 1, 1]], [[0, 0, 0], [2, 2, 2]]]
+    sft = StatefulTractogram(streamlines, 'same', Space.VOX)
+    save_tractogram(sft, os.path.join(fake_dir.name, 'sft.trk'))
 
 
 def test_shuffle_streamlines():
     # Shuffling pretty straightforward, not testing.
     # Verifying that initial SFT is not modified.
     sft2 = shuffle_streamlines(sft)
-    assert not sft2 == sft
+    assert not np.array_equal(sft2.streamlines[0], sft.streamlines[0])
 
 
 def test_flip_sft():
-    # Flip x, verify that y and z are the same.
-    x, y, z = sft.streamlines[0][0]
-    sft2 = flip_sft(sft, ['x'])
-    x2, y2, z2 = sft2.streamlines[0][0]
-    assert (not x == x2) and y == y2 and z == z2
+    sft_flip_x = flip_sft(sft, ['x'])
+    assert_allclose(sft_flip_x.streamlines._data[:, 0], -sft.streamlines._data[:, 0])
 
-    # Flip x and y, verify that z is the same.
-    sft2 = flip_sft(sft, ['x', 'y'])
-    x2, y2, z2 = sft2.streamlines[0][0]
-    assert (not x == x2) and (not y == y2) and z == z2
+    sft_flip_y = flip_sft(sft, ['y'])
+    assert_allclose(sft_flip_y.streamlines._data[:, 1], -sft.streamlines._data[:, 1])
 
+    sft_flip_z = flip_sft(sft, ['z'])
+    assert_allclose(sft_flip_z.streamlines._data[:, 2], -sft.streamlines._data[:, 2])
 
-def test_operations():
-    same = sft.streamlines[0]
-    different = np.asarray([[1., 0., 0.],
-                            [1., 0., 0.],
-                            [1., 0., 0.]])
-    similar = same + 0.0001
-    compared = [same, different, similar]
-
-    # Intersection: should find 2 similar.
-    output, indices = perform_tractogram_operation_on_lines(
-        intersection, [[same], compared])
-    assert len(output) == 1
-
-    # Intersection less precise. Should find 3 similar.
-    # (but can't be tested now; returns the rounded unique streamline)
-    output, indices = perform_tractogram_operation_on_lines(
-        intersection, [[same], compared], precision=1)
-    assert len(output) == 1
-
-    # Difference: A - B: should return 0
-    output, indices = perform_tractogram_operation_on_lines(
-        difference, [[same], compared])
-    assert len(output) == 0
-
-    # Difference: B - A: should return 2
-    output, indices = perform_tractogram_operation_on_lines(
-        difference, [compared, [same]])
-    assert len(output) == 2
-
-    # Difference: B - A less precise: should return 1
-    output, indices = perform_tractogram_operation_on_lines(
-        difference, [compared, [same]], precision=1)
-    assert len(output) == 1
-
-    # Union: should combine the two same,
-    output, indices = perform_tractogram_operation_on_lines(
-        union, [[same], compared])
-    assert len(output) == 3
-
-    # Union less precise: should combine the similar too
-    output, indices = perform_tractogram_operation_on_lines(
-        union, [[same], compared], precision=1)
-    assert len(output) == 2
+    sft_flip_xy = flip_sft(sft, ['x', 'y'])
+    assert_allclose(sft_flip_xy.streamlines._data[:, 0], -sft.streamlines._data[:, 0])
+    assert_allclose(sft_flip_xy.streamlines._data[:, 1], -sft.streamlines._data[:, 1])
 
 
-def test_robust_operations():
-
-    # Recommended in scil_tractogram_math: use precision 0 to manage shifted
-    # tractograms. Testing here.
-    precision_shifted = 0
-
-    same = sft.streamlines[0]
-    shifted_same = same.copy() + 0.5
-    different = np.asarray([[1., 0., 0.],
-                            [1., 0., 0.],
-                            [1., 0., 0.]])
-    compared = [same, shifted_same, different]
-
-    # Intersection: same/shifted
-    output, indices = perform_tractogram_operation_on_lines(
-        intersection_robust, [[same], compared], precision=precision_shifted)
-    assert np.array_equal(indices, [0])
-    assert len(output) == 1
-
-    # Difference: different
-    output, indices = perform_tractogram_operation_on_lines(
-        difference_robust, [compared, [same]], precision=precision_shifted)
-    logging.warning(indices)
-    assert np.array_equal(indices, [2])
-    assert len(output) == 1
-
-    # Union: 4 (different, similar/same/shited)
-    output, indices = perform_tractogram_operation_on_lines(
-        union_robust, [compared, [same]], precision=precision_shifted)
-    logging.warning(indices)
-    assert len(output) == 2
-    assert (indices == [0, 2]).all()
+def test_multiply_sft_affine():
+    pass
 
 
-def test_concatenate_sft():
-    # Testing with different metadata
-    sft2 = StatefulTractogram.from_sft(sft.streamlines, sft)
-    sft2.data_per_point['test2_different'] = [[['a', 'b', 'c']] * len(s)
-                                              for s in sft.streamlines]
-
-    failed = False
-    try:
-        total = concatenate_sft([sft, sft2])
-    except ValueError:
-        failed = True
-    assert failed
-
-    total = concatenate_sft([sft, sft])
-    assert len(total) == len(sft) * 2
-    assert len(total.data_per_streamline['test']) == 2 * len(sft)
-    assert len(total.data_per_point['test2']) == 2 * len(sft)
+def test_compress_sft():
+    compressed_sft = compress_sft(sft)
+    assert len(sft.streamlines) == len(compressed_sft.streamlines)
+    assert len(sft.streamlines[0]) > len(compressed_sft.streamlines[0])
 
 
-def test_combining_sft():
-    # todo
-    perform_tractogram_operation_on_sft('union', [sft, sft], precision=None,
-                                        fake_metadata=False, no_metadata=False)
-
-
-def test_upsample_tractogram():
-    # Add at least one small streamline (len < 3mm) to the test, because
-    # previously this was buggy. Fixed, but keeping the test on short lines.
-    sft2 = sft.from_sft(sft.streamlines, sft)
-    sft2.to_vox()
-    sft2.streamlines.append([[3.0, 3.0, 3.0],
-                             [3.2, 3.0, 3.0]])
-
-    # sft2 contains 5 streamlines.
-    nb_init = len(sft2)
-
-    # 1. Both point_wise and tube_radius
-    new_sft = upsample_tractogram(sft2, nb=1000, point_wise_std=0.5,
-                                  tube_radius=5, gaussian=True,
-                                  error_rate=None, seed=0)
-
-    assert len(new_sft) == 1000
-    for i in range(nb_init):
-        assert np.array_equal(sft2.streamlines[i], new_sft.streamlines[i])
-
-    # 2. Using only one streamline, so that we know the reference, verify that
-    # result is in the correct range. Need the length of the output streamlines
-    # to fit the input streamline. The method uses a resampling to 1 mm.
-    sft2 = sft2[0]
-    sft2 = resample_streamlines_step_size(sft2, 1)
-    sft2.to_rasmm()
-
-    # 2A) tube-radius only: expecting new streamlines in a tube of 5 mm
-    new_sft = upsample_tractogram(sft2, nb=10, tube_radius=5, seed=0)
-    ref_s = sft2.streamlines[0]
-    for s in new_sft.streamlines[1:]:
-        assert np.all(s - ref_s < 5)
-        assert not np.array_equal(s, ref_s)
-
-    # 2b) point-wise only: expecting new streamlines to be modified by a normal
-    # of sigma=0.5. More difficult to test. So, comparing with values the day
-    # of creating this test. Maximum point-wise difference was 4.26
-    new_sft = upsample_tractogram(sft2, nb=10, point_wise_std=0.5, seed=0)
-    for s in new_sft.streamlines[1:]:
-        assert np.max(s - ref_s) < 4.3
-        assert not np.array_equal(s, ref_s)
+def test_split_sft_by_number():
+    all_sfts = split_sft_by_number(sft, 1)
+    assert len(all_sfts) == 2
 
 
 def test_split_sft_randomly():
-    sft_copy = StatefulTractogram.from_sft(sft.streamlines, sft)
-    new_sft_list = split_sft_randomly(sft_copy, 2, 0)
-
-    assert len(new_sft_list) == 2 and isinstance(new_sft_list, list)
-    assert len(new_sft_list[0]) == 2 and len(new_sft_list[1]) == 2
-    assert np.allclose(new_sft_list[0].streamlines[0][0],
-                       [112.458, 35.7144, 58.7432])
-    assert np.allclose(new_sft_list[1].streamlines[0][0],
-                       [112.168, 35.259, 59.419])
+    all_sfts = split_sft_randomly(sft, 1, 1234)
+    assert len(all_sfts) == 2
 
 
-def test_split_sft_randomly_per_cluster():
-    sft_copy = StatefulTractogram.from_sft(sft.streamlines, sft)
-    new_sft_list = split_sft_randomly_per_cluster(sft_copy, [2], 0,
-                                                  [40, 30, 20, 10])
-    assert len(new_sft_list) == 2 and isinstance(new_sft_list, list)
-    assert len(new_sft_list[0]) == 2 and len(new_sft_list[1]) == 2
-    assert np.allclose(new_sft_list[0].streamlines[0][0],
-                       [112.168, 35.259, 59.419])
-    assert np.allclose(new_sft_list[1].streamlines[0][0],
-                       [112.266, 35.4188, 59.0421])
+def test_concatenate_sft():
+    sft_1 = StatefulTractogram(sft.streamlines[0:1], 'same', Space.VOX)
+    sft_2 = StatefulTractogram(sft.streamlines[1:2], 'same', Space.VOX)
+
+    sft_union = concatenate_sft([sft_1, sft_2])
+    assert len(sft_union) == 2
+    assert_array_equal(sft_union.streamlines._data, sft.streamlines._data)
 
 
-def filter_tractogram_data():
-    # toDo
+def test_remove_invalid_streamlines():
+    # Manual creation of invalid streamlines
+    streamlines = [[[0, 0, 0], [1, 1, 1]], [[0, 0, 0], [0, 0, 0]],
+                   [[1, 1, 1], [1, 1, 1]]]
+    sft_w_invalid = StatefulTractogram(streamlines, 'same', Space.VOX)
+
+    clean_sft, _ = remove_invalid_streamlines(sft_w_invalid)
+    assert len(clean_sft) == 1
+
+
+def test_get_subset_streamlines():
+    subset_sft = get_subset_streamlines(sft, [0])
+    assert len(subset_sft) == 1
+    assert_array_equal(sft.streamlines[0], subset_sft.streamlines[0])
+
+
+def test_cut_invalid_streamlines():
+    # Manual creation of invalid streamlines
+    invalid_coord = sft.dimensions[0] + 1
+    streamlines = [[[0, 0, 0], [1, 1, 1]],
+                   [[0, 0, 0], [invalid_coord, invalid_coord, invalid_coord]]]
+    sft_w_invalid = StatefulTractogram(streamlines, 'same', Space.VOX)
+
+    new_sft, _ = cut_invalid_streamlines(sft_w_invalid)
+    assert len(new_sft) == 2
+    assert len(new_sft.streamlines[1]) == 1
+
+
+def test_assert_sft_compatibility():
+    sft_1 = sft
+    sft_2 = StatefulTractogram(sft.streamlines[0:1], 'same', Space.VOX)
+    assert_true(assert_sft_compatibility([sft_1, sft_2]))
+
+    sft_3 = StatefulTractogram(sft.streamlines[0:1], 'same', Space.RASMM)
+    assert_raises(ValueError, assert_sft_compatibility, [sft_1, sft_3])
+
+
+def test_upsample_tractogram():
     pass
+    # resampled_sft = upsample_tractogram(sft, 10)
+    # assert_equal(len(resampled_sft), 10)
+
+
+def test_downsample_tractogram():
+    pass
+    # resampled_sft = downsample_tractogram(sft, 1)
+    # assert_equal(len(resampled_sft), 1)

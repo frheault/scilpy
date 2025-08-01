@@ -95,7 +95,7 @@ def check_slice_indices(vol_img, axis_name, slice_ids):
 
     shape = vol_img.shape
     idx = get_axis_index(axis_name)
-    _slice_ids = list(filter(lambda x: x > shape[idx], slice_ids))
+    _slice_ids = list(filter(lambda x: x >= shape[idx], slice_ids))
     if _slice_ids:
         raise ValueError(
             "Slice indices exceed the volume shape along the given axis:\n"

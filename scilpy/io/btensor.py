@@ -29,7 +29,7 @@ def convert_bshape_to_bdelta(b_shapes):
     b_deltas: array of floats
         Converted b_deltas, such that LTE = 1, STE = 0, PTE = -0.5, CTE = 0.5.
     """
-    b_deltas = np.vectorize(bdeltas.get)(b_shapes)
+    b_deltas = np.vectorize(bdeltas.get, otypes=[float])(b_shapes)
     return b_deltas
 
 

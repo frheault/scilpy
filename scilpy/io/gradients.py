@@ -85,9 +85,9 @@ def save_gradient_sampling_mrtrix(bvecs, shell_idx, bvals, filename):
     """
     with open(filename, 'w') as f:
         for idx in range(bvecs.shape[1]):
-            f.write('{:.8f} {:.8f} {:.8f} {:}\n'
+            f.write('{:.8f} {:.8f} {:.8f} {:d}\n'
                     .format(bvecs[0, idx], bvecs[1, idx], bvecs[2, idx],
-                            bvals[shell_idx[idx]]))
+                            int(bvals[shell_idx[idx]])))
 
     logging.info('Gradient sampling saved in MRtrix format as {}'
                  .format(filename))

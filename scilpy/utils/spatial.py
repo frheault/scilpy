@@ -12,6 +12,7 @@ RAS_AXES_BASIS_VECTORS = ["i", "j", "k"]
 
 
 def _any2ras_index(axis_index, affine=np.eye(4)):
+    # TODO: Add a proper docstring
     """
     Get the index and sign of an axis in RAS from a given index in
     a frame of reference defined by an affine transformation.

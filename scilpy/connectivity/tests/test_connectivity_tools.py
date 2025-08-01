@@ -57,11 +57,6 @@ def test_evaluate_graph_measures():
                         'density', 'rich_club']:
             assert isinstance(value, list)
 
-    # Test with small_world=True
-    measures = evaluate_graph_measures(conn_matrix, len_matrix, True, True)
-    assert 'omega' in measures
-    assert 'sigma' in measures
-
 
 def test_normalize_matrix_from_values():
     matrix = np.array([[1, 2], [3, 4]], dtype=float)

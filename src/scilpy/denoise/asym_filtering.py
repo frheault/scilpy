@@ -417,9 +417,7 @@ def _unified_filter_call_python(sh_data, nx_filter, uv_filter, sigma_range,
 
     # Apply filter to each sphere vertice
     for u_sph_id in range(nb_sf):
-        if u_sph_id % 20 == 0:
-            logging.info('Processing direction: {}/{}'
-                         .format(u_sph_id, nb_sf))
+        logging.info('Processing direction: {}/{}'.format(u_sph_id, nb_sf))
         mean_sf[..., u_sph_id] = _correlate(sh_data, nx_filter, uv_filter,
                                             sigma_range, u_sph_id, B_mat)
 

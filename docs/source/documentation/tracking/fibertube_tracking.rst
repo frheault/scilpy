@@ -1,5 +1,5 @@
-Introduction to the Fibertube Tracking environment through an interactive demo.
-===============================================================================
+Introduction to the Fibertube Tracking
+======================================
 
 In this demo, you will be introduced to the main scripts of this project
 as you apply them on simple data. Our main objective is to better
@@ -362,5 +362,3 @@ This reconstruction is not very good, but it is to be expected with
 a --blur_radius and --step_size of 0.1. If you have a few minutes,
 try again with 0.01!
 
-End of Demo
------------

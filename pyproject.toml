@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scilpy"
-version = "2.2.0"
+version = "2.2.1"
 description = "Scilpy: diffusion MRI tools and utilities"
 authors = [{ name = "SCIL Team" }]
 readme = "README.md"
@@ -285,3 +285,4 @@ scil_volume_reshape  = "scilpy.cli.scil_volume_reshape:main"
 scil_volume_reslice_to_reference  = "scilpy.cli.scil_volume_reslice_to_reference:main"
 scil_volume_stats_in_labels  = "scilpy.cli.scil_volume_stats_in_labels:main"
 scil_volume_stats_in_ROI  = "scilpy.cli.scil_volume_stats_in_ROI:main"
+scil_volume_validate_correct_strides  = "scilpy.cli.scil_volume_validate_correct_strides:main"

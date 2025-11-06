@@ -397,7 +397,7 @@ def correct_labels_jump(labels_map, streamlines, nb_pts):
         if len(neighbor_id) == 0:
             continue
         elif len(neighbor_id) == 1:
-            labels_map[tuple(ind)] = final_labels._data[neighbor_id]
+            labels_map[tuple(ind)] = final_labels._data[neighbor_id[0]]
             continue
         label_values = final_labels._data[neighbor_id]
         gradient = np.ediff1d(label_values)

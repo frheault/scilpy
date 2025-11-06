@@ -112,7 +112,7 @@ def create_tube_with_radii(positions, radii, error, error_coloring=False,
     # Generate the radii array for VTK
     radii_arr = vtk.vtkFloatArray()
     for i in range(joint_count):
-        radii_arr.InsertNextValue(radii[i])
+        radii_arr.InsertNextValue(radii[i].item())
     radii_arr.SetName("radii")
     polydata.GetPointData().SetScalars(radii_arr)
 

@@ -29,6 +29,7 @@ from scilpy.io.streamlines import (load_tractogram_with_reference,
                                    verify_compatibility_with_reference_sft)
 from scilpy.io.utils import (add_json_args,
                              add_reference_arg, add_verbose_arg,
+                             add_overwrite_arg,
                              assert_inputs_exist, assert_outputs_exist)
 from scilpy.utils.metrics_tools import get_bundle_metrics_mean_std, \
     get_bundle_metrics_mean_std_per_point
@@ -73,6 +74,7 @@ def _build_arg_parser():
     add_reference_arg(p)
     add_json_args(p)
     add_verbose_arg(p)
+    add_overwrite_arg(p)
     return p
 
 

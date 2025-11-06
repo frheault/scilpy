@@ -230,7 +230,8 @@ def main():
             plt.xlabel(args.x_label)
             plt.ylabel(args.y_label)
             plt.title(args.title)
-            plt.legend()
+            if any(ax.get_legend_handles_labels()):
+                plt.legend()
 
             out_name = os.path.join(args.out_dir + args.out_name +
                                     '_' + name + '.png')
@@ -254,7 +255,8 @@ def main():
                        color=args.colors[1], s=args.marker_size,
                        marker=args.marker, alpha=args.transparency)
 
-        plt.legend()
+        if any(ax.get_legend_handles_labels()):
+            plt.legend()
 
         if args.show_only:
             plt.show()

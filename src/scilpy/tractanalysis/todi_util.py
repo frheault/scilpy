@@ -113,7 +113,7 @@ def get_segments_dir_and_norm(segments, seg_mid=None, asymmetric=False):
 
 def get_vectors_dir_and_norm(vectors):
     vectors_norm = compute_vectors_norm(vectors)
-    vectors_dir = vectors / vectors_norm.reshape((-1, 1))
+    vectors_dir = vectors / (vectors_norm.reshape((-1, 1)) + 1e-6)
     return vectors_dir, vectors_norm
 
 

@@ -175,11 +175,10 @@ def assert_gradients_filenames_valid(parser, filename_list, input_is_fsl):
 
 
 def add_json_args(parser):
-    g1 = parser.add_argument_group(title='Json options')
-    g1.add_argument('--indent',
+    parser.add_argument('--indent',
                     type=int, default=2,
                     help='Indent for json pretty print.')
-    g1.add_argument('--sort_keys',
+    parser.add_argument('--sort_keys',
                     action='store_true',
                     help='Sort keys in output json.')
 

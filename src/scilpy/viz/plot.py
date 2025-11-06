@@ -133,7 +133,7 @@ def plot_residuals(data_diff, mask, R_k, q1, q3, iqr, residual_basename):
         # Outliers are observations that fall below Q1 - 1.5(IQR) or
         # above Q3 + 1.5(IQR) We check if a voxel is an outlier only if
         # we have a mask, else we are biased.
-        if mask is not None:
+        if mask is not None and nb_voxels > 0:
             x = data_diff[..., k]
             outliers = (x < stats[k]['whislo']) | (x > stats[k]['whishi'])
             percent_outliers[k] = np.sum(outliers) / nb_voxels * 100

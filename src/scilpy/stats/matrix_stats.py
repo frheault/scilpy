@@ -177,10 +177,20 @@ def omega_sigma(matrix):
     transitivity_latt = np.mean(transitivity_latt_list)
     path_length_rand = np.mean(path_length_rand_list)
 
-    omega = (path_length_rand / path_length) - \
-        (transitivity / transitivity_latt)
-    sigma = (transitivity / transitivity_rand) / \
-        (path_length / path_length_rand)
+    if transitivity_latt == 0:
+        logging.warning('Transitivity_latt is zero, omega cannot be computed.')
+        omega = np.inf
+    else:
+        omega = (path_length_rand / path_length) - \
+            (transitivity / transitivity_latt)
+
+    if transitivity_rand == 0 or path_length == 0:
+        logging.warning('Transitivity_rand or path_length is zero, '
+                        'sigma cannot be computed.')
+        sigma = np.inf
+    else:
+        sigma = (transitivity / transitivity_rand) / \
+            (path_length / path_length_rand)
 
     return float(omega), float(sigma)
 

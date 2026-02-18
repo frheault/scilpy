@@ -58,6 +58,7 @@ from scilpy.io.utils import (add_processes_arg, add_sh_basis_args,
                              assert_headers_compatible, assert_outputs_exist,
                              add_overwrite_arg, parse_sh_basis_arg)
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.version import version_string
 
 
@@ -138,7 +139,7 @@ def main():
 
     # Loading
     logging.info("Loading data")
-    sh_img = nib.load(args.in_sh)
+    sh_img = StatefulImage.load(args.in_sh)
     sh = sh_img.get_fdata()
 
     sphere = get_sphere(name=args.sphere)
@@ -149,20 +150,20 @@ def main():
         parser.error('Invalid SH image. A full SH basis is expected.')
 
     if args.mask:
-        mask = get_data_as_mask(nib.load(args.mask), dtype=bool)
+        mask = get_data_as_mask(StatefulImage.load(args.mask), dtype=bool)
     else:
         mask = np.sum(np.abs(sh), axis=-1) > 0
 
     # Processing
     if args.asi_map:
         asi_map = compute_asymmetry_index(sh, sh_order, mask)
-        nib.save(nib.Nifti1Image(asi_map, sh_img.affine),
-                 args.asi_map)
+        res_img = nib.Nifti1Image(asi_map, sh_img.affine)
+        StatefulImage.create_from(res_img, sh_img).save(args.asi_map)
 
     if args.odd_power_map:
         odd_power_map = compute_odd_power_map(sh, sh_order, mask)
-        nib.save(nib.Nifti1Image(odd_power_map, sh_img.affine),
-                 args.odd_power_map)
+        res_img = nib.Nifti1Image(odd_power_map, sh_img.affine)
+        StatefulImage.create_from(res_img, sh_img).save(args.odd_power_map)
 
     if args.peaks or args.peak_values or args.peak_indices or args.nufid:
         peaks, values, indices =\
@@ -181,20 +182,22 @@ def main():
                           is_symmetric=False)
 
         if args.peaks:
-            nib.save(nib.Nifti1Image(reshape_peaks_for_visualization(peaks),
-                                     sh_img.affine), args.peaks)
+            res_img = nib.Nifti1Image(reshape_peaks_for_visualization(peaks),
+                                     sh_img.affine)
+            StatefulImage.create_from(res_img, sh_img).save(args.peaks)
 
         if args.peak_values:
-            nib.save(nib.Nifti1Image(values, sh_img.affine),
-                     args.peak_values)
+            res_img = nib.Nifti1Image(values, sh_img.affine)
+            StatefulImage.create_from(res_img, sh_img).save(args.peak_values)
 
         if args.peak_indices:
-            nib.save(nib.Nifti1Image(indices.astype(np.uint8), sh_img.affine),
-                     args.peak_indices)
+            res_img = nib.Nifti1Image(indices.astype(np.uint8), sh_img.affine)
+            StatefulImage.create_from(res_img, sh_img).save(args.peak_indices)
 
         if args.nufid:
             nufid = np.count_nonzero(values, axis=-1).astype(np.uint8)
-            nib.save(nib.Nifti1Image(nufid, sh_img.affine), args.nufid)
+            res_img = nib.Nifti1Image(nufid, sh_img.affine)
+            StatefulImage.create_from(res_img, sh_img).save(args.nufid)
 
     logging.info("Done. All files written to disk.")
 

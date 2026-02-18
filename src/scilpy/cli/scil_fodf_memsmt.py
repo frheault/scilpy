@@ -49,6 +49,7 @@ from scilpy.image.utils import extract_affine
 from scilpy.io.btensor import (generate_btensor_input,
                                convert_bdelta_to_bshape)
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
                              add_sh_basis_args, add_skip_b0_check_arg,
                              add_tolerance_arg, add_verbose_arg,
@@ -145,8 +146,7 @@ def main():
     arglist = [args.wm_out_fODF, args.gm_out_fODF, args.csf_out_fODF,
                args.vf, args.vf_rgb]
     if args.not_all and not any(arglist):
-        parser.error('When using --not_all, you need to specify at least '
-                     'one file to output.')
+        parser.error('At least one output file must be specified.')
 
     required = args.in_dwis + args.in_bvals + args.in_bvecs
     required += [args.in_wm_frf, args.in_gm_frf, args.in_csf_frf]
@@ -161,7 +161,9 @@ def main():
                      "correctly inserted.")
 
     # Loading data
-    affine = extract_affine(args.in_dwis)
+    # Use first dwi as reference for strides
+    simg_ref = StatefulImage.load(args.in_dwis[0])
+    affine = simg_ref.affine
 
     wm_frf = np.loadtxt(args.in_wm_frf)
     gm_frf = np.loadtxt(args.in_gm_frf)
@@ -176,7 +178,7 @@ def main():
         tol=args.tolerance, skip_b0_check=args.skip_b0_check)
 
     # Checking mask
-    mask = get_data_as_mask(nib.load(args.mask),
+    mask = get_data_as_mask(StatefulImage.load(args.mask),
                             dtype=bool) if args.mask else None
 
     # Checking data and sh_order
@@ -226,8 +228,9 @@ def main():
                                     is_input_legacy=True,
                                     is_output_legacy=is_legacy,
                                     nbr_processes=args.nbr_processes)
-        nib.save(nib.Nifti1Image(wm_coeff.astype(np.float32),
-                                 affine), args.wm_out_fODF)
+        res_img = nib.Nifti1Image(wm_coeff.astype(np.float32),
+                                 affine)
+        StatefulImage.create_from(res_img, simg_ref).save(args.wm_out_fODF)
 
     if args.gm_out_fODF:
         gm_coeff = shm_coeff[..., 1]
@@ -238,8 +241,9 @@ def main():
                                     is_input_legacy=True,
                                     is_output_legacy=is_legacy,
                                     nbr_processes=args.nbr_processes)
-        nib.save(nib.Nifti1Image(gm_coeff.astype(np.float32),
-                                 affine), args.gm_out_fODF)
+        res_img = nib.Nifti1Image(gm_coeff.astype(np.float32),
+                                 affine)
+        StatefulImage.create_from(res_img, simg_ref).save(args.gm_out_fODF)
 
     if args.csf_out_fODF:
         csf_coeff = shm_coeff[..., 0]
@@ -250,17 +254,20 @@ def main():
                                      is_input_legacy=True,
                                      is_output_legacy=is_legacy,
                                      nbr_processes=args.nbr_processes)
-        nib.save(nib.Nifti1Image(csf_coeff.astype(np.float32),
-                                 affine), args.csf_out_fODF)
+        res_img = nib.Nifti1Image(csf_coeff.astype(np.float32),
+                                 affine)
+        StatefulImage.create_from(res_img, simg_ref).save(args.csf_out_fODF)
 
     if args.vf:
-        nib.save(nib.Nifti1Image(vf.astype(np.float32), affine), args.vf)
+        res_img = nib.Nifti1Image(vf.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, simg_ref).save(args.vf)
 
     if args.vf_rgb:
         vf_rgb = vf / np.max(vf) * 255
         vf_rgb = np.clip(vf_rgb, 0, 255)
-        nib.save(nib.Nifti1Image(vf_rgb.astype(np.uint8),
-                                 affine), args.vf_rgb)
+        res_img = nib.Nifti1Image(vf_rgb.astype(np.uint8),
+                                 affine)
+        StatefulImage.create_from(res_img, simg_ref).save(args.vf_rgb)
 
 
 if __name__ == "__main__":

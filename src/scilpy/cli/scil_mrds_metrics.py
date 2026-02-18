@@ -18,6 +18,7 @@ import argparse
 from dipy.reconst.dti import fractional_anisotropy
 
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg,
                              add_verbose_arg,
                              assert_inputs_exist, assert_outputs_exist,
@@ -80,7 +81,7 @@ def main():
     assert_outputs_exist(parser, args, [],
                          optional=[args.fa, args.ad, args.rd, args.md])
 
-    evals_img = nib.load(args.in_evals)
+    evals_img = StatefulImage.load(args.in_evals)
     lambdas = evals_img.get_fdata(dtype=np.float32)
 
     header = evals_img.header
@@ -90,7 +91,7 @@ def main():
 
     # load mask
     if args.mask:
-        mask = get_data_as_mask(nib.load(args.mask))
+        mask = get_data_as_mask(StatefulImage.load(args.mask))
     else:
         mask = np.ones((X, Y, Z), dtype=np.uint8)
 
@@ -104,44 +105,44 @@ def main():
                        fractional_anisotropy(lambdas[:, :, :, 3:6]),
                        fractional_anisotropy(lambdas[:, :, :, 6:9])),
                       axis=3)
-        nib.save(nib.Nifti1Image(fa * mask[..., None],
+        res_img = nib.Nifti1Image(fa * mask[..., None],
                                  affine=affine,
                                  header=header,
-                                 dtype=np.float32),
-                 args.fa)
+                                 dtype=np.float32)
+        StatefulImage.create_from(res_img, evals_img).save(args.fa)
 
     if args.ad:
         ad = np.stack((lambdas[:, :, :, 0],
                        lambdas[:, :, :, 3],
                        lambdas[:, :, :, 6]),
                       axis=3)
-        nib.save(nib.Nifti1Image(ad * mask[..., None],
+        res_img = nib.Nifti1Image(ad * mask[..., None],
                                  affine=affine,
                                  header=header,
-                                 dtype=np.float32),
-                 args.ad)
+                                 dtype=np.float32)
+        StatefulImage.create_from(res_img, evals_img).save(args.ad)
 
     if args.rd:
         rd = np.stack(((lambdas[:, :, :, 1] + lambdas[:, :, :, 2])/2,
                        (lambdas[:, :, :, 4] + lambdas[:, :, :, 5])/2,
                        (lambdas[:, :, :, 7] + lambdas[:, :, :, 8])/2),
                       axis=3)
-        nib.save(nib.Nifti1Image(rd * mask[..., None],
+        res_img = nib.Nifti1Image(rd * mask[..., None],
                                  affine=affine,
                                  header=header,
-                                 dtype=np.float32),
-                 args.rd)
+                                 dtype=np.float32)
+        StatefulImage.create_from(res_img, evals_img).save(args.rd)
 
     if args.md:
         md = np.stack((np.average(lambdas[:, :, :, 0:3], axis=3),
                        np.average(lambdas[:, :, :, 3:6], axis=3),
                        np.average(lambdas[:, :, :, 6:9], axis=3)),
                       axis=3)
-        nib.save(nib.Nifti1Image(md * mask[..., None],
+        res_img = nib.Nifti1Image(md * mask[..., None],
                                  affine=affine,
                                  header=header,
-                                 dtype=np.float32),
-                 args.md)
+                                 dtype=np.float32)
+        StatefulImage.create_from(res_img, evals_img).save(args.md)
 
 
 if __name__ == '__main__':

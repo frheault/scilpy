@@ -19,6 +19,7 @@ from fury import actor
 import nibabel as nib
 import numpy as np
 
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg,
                              add_verbose_arg,
                              assert_inputs_exist,
@@ -64,13 +65,13 @@ def prepare_data_for_actors(dwi_filename, bvals_filename, bvecs_filename,
                             target_template_filename, slices_choice,
                             shells=None):
     # Load and prepare the data
-    dwi_img = nib.load(dwi_filename)
+    dwi_img = StatefulImage.load(dwi_filename)
     dwi_data = dwi_img.get_fdata(dtype=np.float32)
     dwi_affine = dwi_img.affine
 
     bvals, bvecs = read_bvals_bvecs(bvals_filename, bvecs_filename)
 
-    target_template_img = nib.load(target_template_filename)
+    target_template_img = StatefulImage.load(target_template_filename)
     target_template_data = target_template_img.get_fdata(dtype=np.float32)
     target_template_affine = target_template_img.affine
     mask_data = np.zeros(target_template_data.shape)
@@ -170,7 +171,7 @@ def main():
     assert_outputs_exist(parser, args, output_filenames)
 
     # Get the relevant slices from the template
-    target_template_img = nib.load(args.in_template)
+    target_template_img = StatefulImage.load(args.in_template)
     zooms = 1 / float(target_template_img.header.get_zooms()[0])
 
     x_slice = int(target_template_img.shape[0] / 2 + zooms*30)
@@ -186,11 +187,11 @@ def main():
 
     # Create actors from each dataset for Dipy
     volume_actor = actor.slicer(FA,
-                                affine=nib.load(args.in_template).affine,
+                                affine=StatefulImage.load(args.in_template).affine,
                                 opacity=0.3,
                                 interpolation='nearest')
     peaks_actor = actor.peak_slicer(evecs,
-                                    affine=nib.load(
+                                    affine=StatefulImage.load(
                                         args.in_template).affine,
                                     peaks_values=evals,
                                     colors=None, linewidth=1)

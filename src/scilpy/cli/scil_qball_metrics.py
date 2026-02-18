@@ -31,6 +31,7 @@ from scilpy.gradients.bvec_bval_tools import (check_b0_threshold,
                                               is_normalized_bvecs,
                                               normalize_bvecs)
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_b0_thresh_arg, add_overwrite_arg,
                              add_processes_arg, add_sh_basis_args,
                              add_skip_b0_check_arg, add_verbose_arg,
@@ -126,7 +127,7 @@ def main():
     parallel = nbr_processes > 1
 
     # Load data
-    img = nib.load(args.in_dwi)
+    img = StatefulImage.load(args.in_dwi)
     data = img.get_fdata(dtype=np.float32)
 
     bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
@@ -146,7 +147,7 @@ def main():
     sphere = get_sphere(name='symmetric724')
     sh_basis, is_legacy = parse_sh_basis_arg(args)
 
-    mask = get_data_as_mask(nib.load(args.mask)) if args.mask else None
+    mask = get_data_as_mask(StatefulImage.load(args.mask)) if args.mask else None
 
     if args.use_qball:
         model = QballModel(gtab, sh_order_max=args.sh_order,
@@ -172,31 +173,32 @@ def main():
                                 num_processes=nbr_processes)
 
     if args.gfa:
-        nib.save(nib.Nifti1Image(odfpeaks.gfa.astype(np.float32), img.affine),
-                 args.gfa)
+        res_img = nib.Nifti1Image(odfpeaks.gfa.astype(np.float32), img.affine)
+        StatefulImage.create_from(res_img, img).save(args.gfa)
 
     if args.peaks:
-        nib.save(nib.Nifti1Image(reshape_peaks_for_visualization(odfpeaks),
-                 img.affine), args.peaks)
+        res_img = nib.Nifti1Image(reshape_peaks_for_visualization(odfpeaks),
+                 img.affine)
+        StatefulImage.create_from(res_img, img).save(args.peaks)
 
     if args.peak_indices:
-        nib.save(nib.Nifti1Image(odfpeaks.peak_indices, img.affine),
-                 args.peak_indices)
+        res_img = nib.Nifti1Image(odfpeaks.peak_indices, img.affine)
+        StatefulImage.create_from(res_img, img).save(args.peak_indices)
 
     if args.sh:
-        nib.save(nib.Nifti1Image(
-            odfpeaks.shm_coeff.astype(np.float32), img.affine),
-            args.sh)
+        res_img = nib.Nifti1Image(
+            odfpeaks.shm_coeff.astype(np.float32), img.affine)
+        StatefulImage.create_from(res_img, img).save(args.sh)
 
     if args.nufo:
         peaks_count = (odfpeaks.peak_indices > -1).sum(3)
-        nib.save(nib.Nifti1Image(peaks_count.astype(np.int32), img.affine),
-                 args.nufo)
+        res_img = nib.Nifti1Image(peaks_count.astype(np.int32), img.affine)
+        StatefulImage.create_from(res_img, img).save(args.nufo)
 
     if args.a_power:
         odf_a_power = anisotropic_power(odfpeaks.shm_coeff)
-        nib.save(nib.Nifti1Image(odf_a_power.astype(np.float32), img.affine),
-                 args.a_power)
+        res_img = nib.Nifti1Image(odf_a_power.astype(np.float32), img.affine)
+        StatefulImage.create_from(res_img, img).save(args.a_power)
 
 
 if __name__ == "__main__":

@@ -56,6 +56,7 @@ import numpy as np
 
 from scilpy.image.volume_metrics import estimate_piesno_sigma
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_processes_arg,
                              add_overwrite_arg,
                              add_verbose_arg,
@@ -164,7 +165,7 @@ def main():
                               [args.mask_denoise, args.mask_sigma])
 
     # Loading
-    vol = nib.load(args.in_image)
+    vol = StatefulImage.load(args.in_image)
     vol_data = vol.get_fdata(dtype=np.float32)
     nb_volumes = 1 if (len(vol_data.shape) != 4 or vol_data.shape[3] == 1) \
         else vol_data.shape[-1]
@@ -180,7 +181,7 @@ def main():
         else:
             mask_denoise[vol_data > 0] = True
     else:
-        mask_denoise = get_data_as_mask(nib.load(args.mask_denoise),
+        mask_denoise = get_data_as_mask(StatefulImage.load(args.mask_denoise),
                                         dtype=bool)
 
     # Processing
@@ -190,7 +191,7 @@ def main():
         sigma = np.ones(vol_data.shape[:3]) * args.sigma
     elif args.basic_sigma:
         if args.mask_sigma:
-            mask_sigma = get_data_as_mask(nib.load(args.mask_sigma))
+            mask_sigma = get_data_as_mask(StatefulImage.load(args.mask_sigma))
             tmp_vol_data = (vol_data * mask_sigma[:, :, :, None]
                             ).astype(np.float32)
         else:
@@ -215,9 +216,9 @@ def main():
         if args.save_piesno_mask:
             logging.info("Saving resulting Piesno noise mask in {}"
                          .format(args.save_piesno_mask))
-            nib.save(nib.Nifti1Image(mask_noise, vol.affine,
-                                     header=vol.header),
-                     args.save_piesno_mask)
+            res_img = nib.Nifti1Image(mask_noise, vol.affine,
+                                     header=vol.header)
+            StatefulImage.create_from(res_img, vol).save(args.save_piesno_mask)
 
         # Broadcast the values per slice to a whole 3D volume for nlmeans
         sigma = np.ones(vol_data.shape[:3]) * sigma[None, None, :]
@@ -229,8 +230,8 @@ def main():
             num_threads=args.nbr_processes)
 
     # Saving
-    nib.save(nib.Nifti1Image(data_denoised, vol.affine, header=vol.header),
-             args.out_image)
+    res_img = nib.Nifti1Image(data_denoised, vol.affine, header=vol.header)
+    StatefulImage.create_from(res_img, vol).save(args.out_image)
 
 
 if __name__ == "__main__":

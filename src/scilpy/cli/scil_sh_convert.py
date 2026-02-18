@@ -16,6 +16,7 @@ import nibabel as nib
 import numpy as np
 
 from scilpy.reconst.sh import convert_sh_basis
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, add_sh_basis_args,
                              add_processes_arg, add_verbose_arg,
                              assert_inputs_exist, assert_outputs_exist,
@@ -47,25 +48,24 @@ def main():
     logging.getLogger().setLevel(logging.getLevelName(args.verbose))
 
     assert_inputs_exist(parser, args.in_sh)
-    assert_outputs_exist(parser, args, args.out_sh)
-
-    sphere = get_sphere(name='repulsion724').subdivide(n=1)
-    img = nib.load(args.in_sh)
-    data = img.get_fdata(dtype=np.float32)
-
-    in_sh_basis, is_in_legacy, out_sh_basis, is_out_legacy \
-        = parse_sh_basis_arg(args)
-
-    new_data = convert_sh_basis(data, sphere,
-                                input_basis=in_sh_basis,
-                                output_basis=out_sh_basis,
-                                is_input_legacy=is_in_legacy,
-                                is_output_legacy=is_out_legacy,
-                                nbr_processes=args.nbr_processes)
-
-    nib.save(nib.Nifti1Image(new_data, img.affine, header=img.header),
-             args.out_sh)
-
+        assert_outputs_exist(parser, args, args.out_sh)
+     
+        sphere = get_sphere(name='repulsion724').subdivide(n=1)
+        img = StatefulImage.load(args.in_sh)
+        data = img.get_fdata(dtype=np.float32)
+     
+        in_sh_basis, is_in_legacy, out_sh_basis, is_out_legacy \
+            = parse_sh_basis_arg(args)
+     
+        new_data = convert_sh_basis(data, sphere,
+                                    input_basis=in_sh_basis,
+                                    output_basis=out_sh_basis,
+                                    is_input_legacy=is_in_legacy,
+                                    is_output_legacy=is_out_legacy,
+                                    nbr_processes=args.nbr_processes)
+     
+        res_img = nib.Nifti1Image(new_data, img.affine, header=img.header)
+        StatefulImage.create_from(res_img, img).save(args.out_sh)
 
 if __name__ == "__main__":
     main()

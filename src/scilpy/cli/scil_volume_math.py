@@ -21,6 +21,7 @@ import numpy as np
 
 from scilpy.image.volume_math import (get_image_ops, get_operations_doc)
 from scilpy.io.image import load_img
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg,
                              add_verbose_arg,
                              assert_outputs_exist)
@@ -78,7 +79,7 @@ def main():
     found_ref = False
     for input_arg in args.in_args:
         if not is_float(input_arg):
-            ref_img = nib.load(input_arg)
+            ref_img = StatefulImage.load(input_arg)
             found_ref = True
             if mask is None:
                 mask = np.zeros(ref_img.shape)
@@ -99,12 +100,12 @@ def main():
         if not isinstance(img, float):
             args.data_type = img.header.get_data_dtype() if args.data_type is None else args.data_type
 
-        if isinstance(img, nib.Nifti1Image) and \
+        if isinstance(img, StatefulImage) and \
             dtype != ref_img.get_data_dtype() and \
                 not args.data_type:
             parser.error('Inputs do not have a compatible data type.\n'
                          'Use --data_type to specify output datatype.')
-        if args.operation in binary_op and isinstance(img, nib.Nifti1Image):
+        if args.operation in binary_op and isinstance(img, StatefulImage):
             data = img.get_fdata(dtype=np.float64)
             unique = np.unique(data)
             if not len(unique) <= 2:
@@ -116,7 +117,7 @@ def main():
                                 'binary arrays, will be converted.\n'
                                 'Non-zeros will be set to ones.')
 
-        if isinstance(img, nib.Nifti1Image):
+        if isinstance(img, StatefulImage):
             data = img.get_fdata(dtype=np.float64)
             if data.ndim == 4:
                 mask[np.sum(data, axis=3).astype(bool) > 0] = 1
@@ -142,9 +143,9 @@ def main():
     if args.exclude_background:
         output_data[mask == 0] = 0
 
-    new_img = nib.Nifti1Image(output_data, ref_img.affine,
+    res_img = nib.Nifti1Image(output_data, ref_img.affine,
                               header=ref_img.header)
-    nib.save(new_img, args.out_image)
+    StatefulImage.create_from(res_img, ref_img).save(args.out_image)
 
 
 if __name__ == "__main__":

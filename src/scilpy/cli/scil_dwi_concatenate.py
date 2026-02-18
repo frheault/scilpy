@@ -14,6 +14,7 @@ from dipy.io.utils import is_header_compatible
 import nibabel as nib
 import numpy as np
 
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg,
                              add_verbose_arg,
                              assert_inputs_exist,
@@ -76,13 +77,13 @@ def main():
     all_bvals = np.concatenate(all_bvals)
     all_bvecs = np.concatenate(all_bvecs)
 
-    ref_dwi = nib.load(args.in_dwis[0])
+    ref_dwi = StatefulImage.load(args.in_dwis[0])
     all_dwi = np.zeros(ref_dwi.shape[0:3] + (total_size,),
                        dtype=args.data_type)
     last_count = ref_dwi.shape[-1]
     all_dwi[..., 0:last_count] = ref_dwi.get_fdata()
     for i in range(1, len(args.in_dwis)):
-        curr_dwi = nib.load(args.in_dwis[i])
+        curr_dwi = StatefulImage.load(args.in_dwis[i])
         if not is_header_compatible(curr_dwi, ref_dwi):
             raise ValueError('All DWI must have the compatible header.')
         curr_size = curr_dwi.shape[-1]
@@ -92,8 +93,8 @@ def main():
 
     np.savetxt(args.out_bval, all_bvals, '%d')
     np.savetxt(args.out_bvec, all_bvecs.T, '%0.15f')
-    nib.save(nib.Nifti1Image(all_dwi, ref_dwi.affine, header=ref_dwi.header),
-             args.out_dwi)
+    res_img = nib.Nifti1Image(all_dwi, ref_dwi.affine, header=ref_dwi.header)
+    StatefulImage.create_from(res_img, ref_dwi).save(args.out_dwi)
 
 
 if __name__ == "__main__":

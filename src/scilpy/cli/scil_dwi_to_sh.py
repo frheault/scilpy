@@ -15,6 +15,7 @@ import numpy as np
 
 from scilpy.gradients.bvec_bval_tools import check_b0_threshold
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_b0_thresh_arg, add_overwrite_arg,
                              add_sh_basis_args, add_skip_b0_check_arg,
                              add_verbose_arg, assert_inputs_exist,
@@ -68,7 +69,7 @@ def main():
     assert_outputs_exist(parser, args, args.out_sh)
     assert_headers_compatible(parser, args.in_dwi, args.mask)
 
-    vol = nib.load(args.in_dwi)
+    vol = StatefulImage.load(args.in_dwi)
     dwi = vol.get_fdata(dtype=np.float32)
 
     bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
@@ -81,7 +82,7 @@ def main():
 
     sh_basis, is_legacy = parse_sh_basis_arg(args)
 
-    mask = get_data_as_mask(nib.load(args.mask),
+    mask = get_data_as_mask(StatefulImage.load(args.mask),
                             dtype=bool) if args.mask else None
 
     sh = compute_sh_coefficients(dwi, gtab, args.b0_threshold,
@@ -89,7 +90,8 @@ def main():
                                  use_attenuation=args.use_attenuation,
                                  mask=mask, is_legacy=is_legacy)
 
-    nib.save(nib.Nifti1Image(sh.astype(np.float32), vol.affine), args.out_sh)
+    res_img = nib.Nifti1Image(sh.astype(np.float32), vol.affine)
+    StatefulImage.create_from(res_img, vol).save(args.out_sh)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ import six
 from scilpy.gradients.bvec_bval_tools import DEFAULT_B0_THRESHOLD
 from scilpy.utils.filenames import split_name_with_nii
 from scilpy.utils.spatial import RAS_AXES_NAMES
+from scilpy.io.stateful_image import StatefulImage
 
 
 FLOATING_POINTS_PRECISION = 12
@@ -1223,19 +1224,19 @@ def get_default_screenshotting_data(args, peaks=True):
     peaks_imgs: List[nibabel.Nifti1Image]
         List of peaks images.
     """
-    volume_img = nib.load(args.volume)
+    volume_img = StatefulImage.load(args.volume)
 
     transparency_img = None
     if args.transparency:
-        transparency_img = nib.load(args.transparency)
+        transparency_img = StatefulImage.load(args.transparency)
 
     labelmap_img = None
     if args.labelmap:
-        labelmap_img = nib.load(args.labelmap)
+        labelmap_img = StatefulImage.load(args.labelmap)
 
     ovl_imgs, ovl_colors = None, None
     if args.overlays:
-        ovl_imgs = [nib.load(f) for f in args.overlays]
+        ovl_imgs = [StatefulImage.load(f) for f in args.overlays]
 
         if args.overlays_colors is not None:
             if len(args.overlays_colors) == 3:
@@ -1248,7 +1249,7 @@ def get_default_screenshotting_data(args, peaks=True):
 
     peaks_imgs = None
     if peaks and args.peaks:
-        peaks_imgs = [nib.load(f) for f in args.peaks]
+        peaks_imgs = [StatefulImage.load(f) for f in args.peaks]
 
     return (volume_img,
             transparency_img,

@@ -16,6 +16,7 @@ from dipy.direction.peaks import PeaksAndMetrics
 from dipy.io.utils import create_tractogram_header, get_reference_info
 from dipy.reconst.shm import sh_to_sf_matrix
 from dipy.tracking.streamlinespeed import compress_streamlines, length
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_compression_arg, add_overwrite_arg,
                              add_sh_basis_args)
 from scilpy.reconst.utils import find_order_from_nb_coeff, get_maximas
@@ -319,7 +320,7 @@ def get_direction_getter(in_img, algo, sphere, sub_sphere, theta, sh_basis,
     dg: dipy.direction.DirectionGetter
         The direction getter object.
     """
-    img_data = nib.load(in_img).get_fdata(dtype=np.float32)
+    img_data = StatefulImage.load(in_img).get_fdata(dtype=np.float32)
 
     sphere = HemiSphere.from_sphere(
         get_sphere(name=sphere)).subdivide(n=sub_sphere)

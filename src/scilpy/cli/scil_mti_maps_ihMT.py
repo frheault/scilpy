@@ -103,11 +103,13 @@ References:
 import argparse
 import logging
 import os
+import sys
 
 import nibabel as nib
 import numpy as np
 
 from scilpy.io.mti import add_common_args_mti, load_and_verify_mti
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg,
                              assert_inputs_exist, add_verbose_arg,
                              assert_output_dirs_exist_and_empty)
@@ -200,7 +202,8 @@ def main():
                         optional=args.in_mtoff_t1 or [] + [args.mask])
 
     # Define affine. Uses the first in_mtoff_pd (required).
-    affine = nib.load(input_maps_lists[4][0]).affine
+    simg_ref = StatefulImage.load(input_maps_lists[4][0])
+    affine = simg_ref.affine
 
     # Define contrasts maps names
     contrast_names = ['altnp', 'altpn', 'negative', 'positive', 'mtoff_PD',
@@ -209,7 +212,7 @@ def main():
     # Other checks, loading, saving contrast_maps.
     single_echo, flip_angles, rep_times, B1_map, contrast_maps = \
         load_and_verify_mti(args, parser, input_maps_lists, extended_dir,
-                            affine, contrast_names)
+                            simg_ref, contrast_names)
 
     # Compute ratio maps
     MTR, ihMTR = compute_ratio_map((contrast_maps[2] + contrast_maps[3]) / 2,
@@ -235,16 +238,20 @@ def main():
                                             flip_angles, rep_times)
         R1app = 1000 / T1app  # convert 1/ms to 1/s
         if args.extended:
-            nib.save(nib.Nifti1Image(MTsat_sp, affine),
+            res_img = nib.Nifti1Image(MTsat_sp, affine)
+            StatefulImage.create_from(res_img, simg_ref).save(
                      os.path.join(extended_dir,
                                   out_prefix + "MTsat_single_positive.nii.gz"))
-            nib.save(nib.Nifti1Image(MTsat_sn, affine),
+            res_img = nib.Nifti1Image(MTsat_sn, affine)
+            StatefulImage.create_from(res_img, simg_ref).save(
                      os.path.join(extended_dir,
                                   out_prefix + "MTsat_single_negative.nii.gz"))
-            nib.save(nib.Nifti1Image(MTsat_d, affine),
+            res_img = nib.Nifti1Image(MTsat_d, affine)
+            StatefulImage.create_from(res_img, simg_ref).save(
                      os.path.join(extended_dir,
                                   out_prefix + "MTsat_dual.nii.gz"))
-            nib.save(nib.Nifti1Image(R1app, affine),
+            res_img = nib.Nifti1Image(R1app, affine)
+            StatefulImage.create_from(res_img, simg_ref).save(
                      os.path.join(extended_dir,
                                   out_prefix + "apparent_R1.nii.gz"))
 
@@ -292,7 +299,8 @@ def main():
                     for curr_name in img_name]
 
     for img_to_save, name in zip(img_data, img_name):
-        nib.save(nib.Nifti1Image(img_to_save.astype(np.float32), affine),
+        res_img = nib.Nifti1Image(img_to_save.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, simg_ref).save(
                  os.path.join(output_dir, name + '.nii.gz'))
 
 

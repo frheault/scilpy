@@ -46,6 +46,7 @@ import numpy as np
 from scilpy.image.utils import extract_affine
 from scilpy.io.btensor import generate_btensor_input
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, assert_inputs_exist,
                              assert_outputs_exist, add_processes_arg,
                              add_verbose_arg, add_skip_b0_check_arg,
@@ -178,7 +179,9 @@ def main():
         raise ValueError(msg)
 
     # Loading
-    affine = extract_affine(args.in_dwis)
+    # Use first dwi as reference for strides
+    ref_simg = StatefulImage.load(args.in_dwis[0])
+    affine = ref_simg.affine
 
     # Note. This script does not currently allow using a separate b0_threshold
     # for the b0s. Using the tolerance. To change this, we would have to
@@ -199,11 +202,11 @@ def main():
             'No mask provided. The fit might not converge due to noise. '
             'Please provide a mask if it is the case.')
     else:
-        mask = get_data_as_mask(nib.load(args.mask), dtype=bool)
+        mask = get_data_as_mask(StatefulImage.load(args.mask), dtype=bool)
 
     if args.fa is not None:
-        vol = nib.load(args.fa)
-        FA = vol.get_fdata(dtype=np.float32)
+        fa_simg = StatefulImage.load(args.fa)
+        FA = fa_simg.get_fdata(dtype=np.float32)
 
     # Processing
     parameters = fit_gamma(data, gtab_infos, mask=mask,
@@ -219,20 +222,26 @@ def main():
     microFA = np.clip(microFA, 0, 1)
 
     if args.md:
-        nib.save(nib.Nifti1Image(parameters[..., 1].astype(np.float32),
-                                 affine), args.md)
+        res_img = nib.Nifti1Image(parameters[..., 1].astype(np.float32),
+                                 affine)
+        StatefulImage.create_from(res_img, ref_simg).save(args.md)
     if args.ufa:
-        nib.save(nib.Nifti1Image(microFA.astype(np.float32), affine), args.ufa)
+        res_img = nib.Nifti1Image(microFA.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, ref_simg).save(args.ufa)
     if args.op:
         OP = np.sqrt((3 * (microFA ** (-2)) - 2) / (3 * (FA ** (-2)) - 2))
         OP[microFA < FA] = 0
-        nib.save(nib.Nifti1Image(OP.astype(np.float32), affine), args.op)
+        res_img = nib.Nifti1Image(OP.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, ref_simg).save(args.op)
     if args.mk_i:
-        nib.save(nib.Nifti1Image(MK_I.astype(np.float32), affine), args.mk_i)
+        res_img = nib.Nifti1Image(MK_I.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, ref_simg).save(args.mk_i)
     if args.mk_a:
-        nib.save(nib.Nifti1Image(MK_A.astype(np.float32), affine), args.mk_a)
+        res_img = nib.Nifti1Image(MK_A.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, ref_simg).save(args.mk_a)
     if args.mk_t:
-        nib.save(nib.Nifti1Image(MK_T.astype(np.float32), affine), args.mk_t)
+        res_img = nib.Nifti1Image(MK_T.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, ref_simg).save(args.mk_t)
 
 
 if __name__ == "__main__":

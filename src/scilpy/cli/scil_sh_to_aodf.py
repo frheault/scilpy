@@ -37,6 +37,7 @@ from scilpy.reconst.utils import get_sh_order_and_fullness
 from scilpy.io.utils import (add_overwrite_arg, add_verbose_arg,
                              assert_inputs_exist, add_sh_basis_args,
                              assert_outputs_exist, parse_sh_basis_arg)
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.denoise.asym_filtering import (cosine_filtering, unified_filtering)
 from scilpy.version import version_string
 
@@ -137,7 +138,7 @@ def main():
     assert_inputs_exist(parser, args.in_sh)
 
     # Prepare data
-    sh_img = nib.load(args.in_sh)
+    sh_img = StatefulImage.load(args.in_sh)
     data = sh_img.get_fdata(dtype=np.float32)
 
     sh_order, full_basis = get_sh_order_and_fullness(data.shape[-1])
@@ -176,13 +177,14 @@ def main():
     logging.info('Elapsed time (s): {0}'.format(t1 - t0))
 
     logging.info('Saving filtered SH to file {0}.'.format(args.out_sh))
-    nib.save(nib.Nifti1Image(asym_sh, sh_img.affine), args.out_sh)
+    res_img = nib.Nifti1Image(asym_sh, sh_img.affine)
+    StatefulImage.create_from(res_img, sh_img).save(args.out_sh)
 
     if args.out_sym:
         _, orders = sph_harm_ind_list(sh_order, full_basis=True)
         logging.info('Saving symmetric SH to file {0}.'.format(args.out_sym))
-        nib.save(nib.Nifti1Image(asym_sh[..., orders % 2 == 0], sh_img.affine),
-                 args.out_sym)
+        res_img = nib.Nifti1Image(asym_sh[..., orders % 2 == 0], sh_img.affine)
+        StatefulImage.create_from(res_img, sh_img).save(args.out_sym)
 
 
 if __name__ == '__main__':

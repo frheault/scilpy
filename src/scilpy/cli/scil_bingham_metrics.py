@@ -43,7 +43,7 @@ from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
 from scilpy.reconst.bingham import (compute_fiber_density,
                                     compute_fiber_spread,
                                     compute_fiber_fraction)
-
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.version import version_string
 
 
@@ -98,9 +98,9 @@ def main():
     assert_outputs_exist(parser, args, [], optional=outputs)
     assert_headers_compatible(parser, args.in_bingham, args.mask)
 
-    bingham_im = nib.load(args.in_bingham)
+    bingham_im = StatefulImage.load(args.in_bingham)
     bingham = bingham_im.get_fdata()
-    mask = get_data_as_mask(nib.load(args.mask),
+    mask = get_data_as_mask(StatefulImage.load(args.mask),
                             dtype=bool) if args.mask else None
 
     nbr_processes = validate_nbr_processes(parser, args)
@@ -112,7 +112,8 @@ def main():
     t1 = time.perf_counter()
     logging.info('FD computed in (s): {0}'.format(t1 - t0))
     if args.out_fd:
-        nib.save(nib.Nifti1Image(fd, bingham_im.affine), args.out_fd)
+        res_img = nib.Nifti1Image(fd, bingham_im.affine)
+        StatefulImage.create_from(res_img, bingham_im).save(args.out_fd)
 
     if args.out_fs:
         t0 = time.perf_counter()
@@ -120,7 +121,8 @@ def main():
         fs = compute_fiber_spread(bingham, fd)
         t1 = time.perf_counter()
         logging.info('FS computed in (s): {0}'.format(t1 - t0))
-        nib.save(nib.Nifti1Image(fs, bingham_im.affine), args.out_fs)
+        res_img = nib.Nifti1Image(fs, bingham_im.affine)
+        StatefulImage.create_from(res_img, bingham_im).save(args.out_fs)
 
     if args.out_ff:
         t0 = time.perf_counter()
@@ -128,7 +130,8 @@ def main():
         ff = compute_fiber_fraction(fd)
         t1 = time.perf_counter()
         logging.info('FS computed in (s): {0}'.format(t1 - t0))
-        nib.save(nib.Nifti1Image(ff, bingham_im.affine), args.out_ff)
+        res_img = nib.Nifti1Image(ff, bingham_im.affine)
+        StatefulImage.create_from(res_img, bingham_im).save(args.out_ff)
 
 
 if __name__ == '__main__':

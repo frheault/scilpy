@@ -21,6 +21,7 @@ import nibabel as nib
 import numpy as np
 
 from scilpy.image.volume_operations import flip_volume
+from scilpy.io.image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, assert_inputs_exist,
                              add_verbose_arg, assert_outputs_exist)
 from scilpy.version import version_string
@@ -54,14 +55,15 @@ def main():
     assert_inputs_exist(parser, args.in_image)
     assert_outputs_exist(parser, args, args.out_image)
 
-    vol = nib.load(args.in_image)
+    vol = StatefulImage.load(args.in_image)
     data = vol.get_fdata(dtype=np.float32)
     affine = vol.affine
     header = vol.header
 
     data = flip_volume(data, args.axes)
 
-    nib.save(nib.Nifti1Image(data, affine, header=header), args.out_image)
+    res_img = nib.Nifti1Image(data, affine, header=header)
+    StatefulImage.create_from(res_img, vol).save(args.out_image)
 
 
 if __name__ == "__main__":

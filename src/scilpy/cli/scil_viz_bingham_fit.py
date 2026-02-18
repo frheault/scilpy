@@ -18,6 +18,7 @@ import nibabel as nib
 
 from dipy.data import get_sphere, SPHERE_FILES
 
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg,
                              add_verbose_arg,
                              assert_inputs_exist,
@@ -95,7 +96,7 @@ def _get_data_from_inputs(args):
     """
     Load data given by args.
     """
-    bingham = nib.load(args.in_bingham).get_fdata()
+    bingham = StatefulImage.load(args.in_bingham).get_fdata()
     if not args.slice_index:
         slice_index = bingham.shape[get_axis_index(args.axis_name)] // 2
     else:

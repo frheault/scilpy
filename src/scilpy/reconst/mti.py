@@ -6,6 +6,7 @@ import scipy.io
 import scipy.ndimage
 
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 
 
 def py_fspecial_gauss(shape, sigma):
@@ -190,7 +191,7 @@ def threshold_map(computed_map,  in_mask,
 
     # Load and apply sum of T1 probability maps on myelin maps
     if in_mask is not None:
-        mask_image = nib.load(in_mask)
+        mask_image = StatefulImage.load(in_mask)
         mask_data = get_data_as_mask(mask_image)
         computed_map[np.where(mask_data == 0)] = 0
 

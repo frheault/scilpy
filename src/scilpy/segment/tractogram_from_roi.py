@@ -14,6 +14,7 @@ from dipy.tracking.utils import length as compute_length
 from scilpy.image.utils import \
     split_mask_blobs_kmeans
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.streamlines import load_tractogram_with_reference
 from scilpy.segment.streamlines import filter_grid_roi, filter_grid_roi_both_ends
 from scilpy.tractograms.streamline_operations import \
@@ -67,7 +68,7 @@ def compute_masks_from_bundles(gt_files, parser, args, inverse_mask=False):
             # Will be converted to binary masks immediately
             _, ext = split_name_with_nii(gt_bundle)
             if ext in ['.gz', '.nii.gz']:
-                gt_img = nib.load(gt_bundle)
+                gt_img = StatefulImage.load(gt_bundle)
                 gt_mask = get_data_as_mask(gt_img)
                 dimensions = gt_mask.shape
             else:
@@ -123,7 +124,7 @@ def _extract_and_save_tails_heads_from_endpoints(gt_endpoints, out_dir):
     dimensions: tuple of int
         Dimensions of the mask image.
     """
-    mask_img = nib.load(gt_endpoints)
+    mask_img = StatefulImage.load(gt_endpoints)
     mask = get_data_as_mask(mask_img)
     affine = mask_img.affine
     dimensions = mask.shape
@@ -133,8 +134,12 @@ def _extract_and_save_tails_heads_from_endpoints(gt_endpoints, out_dir):
     basename = os.path.basename(split_name_with_nii(gt_endpoints)[0])
     tail_filename = os.path.join(out_dir, '{}_tail.nii.gz'.format(basename))
     head_filename = os.path.join(out_dir, '{}_head.nii.gz'.format(basename))
-    nib.save(nib.Nifti1Image(head.astype(mask.dtype), affine), head_filename)
-    nib.save(nib.Nifti1Image(tail.astype(mask.dtype), affine), tail_filename)
+    
+    res_img_head = nib.Nifti1Image(head.astype(mask.dtype), affine)
+    StatefulImage.create_from(res_img_head, mask_img).save(head_filename)
+    
+    res_img_tail = nib.Nifti1Image(tail.astype(mask.dtype), affine)
+    StatefulImage.create_from(res_img_tail, mask_img).save(tail_filename)
 
     return tail_filename, head_filename, affine, dimensions
 
@@ -354,8 +359,8 @@ def _extract_vb_one_bundle(
         Dictionary of recognized streamlines statistics
     """
     if len(sft) > 0:
-        mask_1_img = nib.load(head_filename)
-        mask_2_img = nib.load(tail_filename)
+        mask_1_img = StatefulImage.load(head_filename)
+        mask_2_img = StatefulImage.load(tail_filename)
         mask_1 = get_data_as_mask(mask_1_img)
         mask_2 = get_data_as_mask(mask_2_img)
 
@@ -505,8 +510,8 @@ def _extract_ib_one_bundle(sft, mask_1_filename, mask_2_filename,
     """
 
     if len(sft) > 0:
-        mask_1_img = nib.load(mask_1_filename)
-        mask_2_img = nib.load(mask_2_filename)
+        mask_1_img = StatefulImage.load(mask_1_filename)
+        mask_2_img = StatefulImage.load(mask_2_filename)
         mask_1 = get_data_as_mask(mask_1_img)
         mask_2 = get_data_as_mask(mask_2_img)
 

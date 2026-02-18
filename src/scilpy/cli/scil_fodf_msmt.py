@@ -31,6 +31,7 @@ from scilpy.gradients.bvec_bval_tools import (check_b0_threshold,
                                               normalize_bvecs,
                                               is_normalized_bvecs)
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
                              assert_inputs_exist, assert_outputs_exist,
                              add_sh_basis_args, add_skip_b0_check_arg,
@@ -132,7 +133,7 @@ def main():
     wm_frf = np.loadtxt(args.in_wm_frf)
     gm_frf = np.loadtxt(args.in_gm_frf)
     csf_frf = np.loadtxt(args.in_csf_frf)
-    vol = nib.load(args.in_dwi)
+    vol = StatefulImage.load(args.in_dwi)
     data = vol.get_fdata(dtype=np.float32)
     bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
 
@@ -142,7 +143,7 @@ def main():
     sh_basis, is_legacy = parse_sh_basis_arg(args)
 
     # Checking mask
-    mask = get_data_as_mask(nib.load(args.mask),
+    mask = get_data_as_mask(StatefulImage.load(args.mask),
                             dtype=bool) if args.mask else None
 
     # Checking bvals, bvecs values and loading gtab
@@ -206,8 +207,9 @@ def main():
                                     is_input_legacy=True,
                                     is_output_legacy=is_legacy,
                                     nbr_processes=args.nbr_processes)
-        nib.save(nib.Nifti1Image(wm_coeff.astype(np.float32),
-                                 vol.affine), args.wm_out_fODF)
+        res_img = nib.Nifti1Image(wm_coeff.astype(np.float32),
+                                 vol.affine)
+        StatefulImage.create_from(res_img, vol).save(args.wm_out_fODF)
 
     if args.gm_out_fODF:
         gm_coeff = shm_coeff[..., 1]
@@ -218,8 +220,9 @@ def main():
                                     is_input_legacy=True,
                                     is_output_legacy=is_legacy,
                                     nbr_processes=args.nbr_processes)
-        nib.save(nib.Nifti1Image(gm_coeff.astype(np.float32),
-                                 vol.affine), args.gm_out_fODF)
+        res_img = nib.Nifti1Image(gm_coeff.astype(np.float32),
+                                 vol.affine)
+        StatefulImage.create_from(res_img, vol).save(args.gm_out_fODF)
 
     if args.csf_out_fODF:
         csf_coeff = shm_coeff[..., 0]
@@ -230,18 +233,21 @@ def main():
                                      is_input_legacy=True,
                                      is_output_legacy=is_legacy,
                                      nbr_processes=args.nbr_processes)
-        nib.save(nib.Nifti1Image(csf_coeff.astype(np.float32),
-                                 vol.affine), args.csf_out_fODF)
+        res_img = nib.Nifti1Image(csf_coeff.astype(np.float32),
+                                 vol.affine)
+        StatefulImage.create_from(res_img, vol).save(args.csf_out_fODF)
 
     if args.vf:
-        nib.save(nib.Nifti1Image(vf.astype(np.float32),
-                                 vol.affine), args.vf)
+        res_img = nib.Nifti1Image(vf.astype(np.float32),
+                                 vol.affine)
+        StatefulImage.create_from(res_img, vol).save(args.vf)
 
     if args.vf_rgb:
         vf_rgb = vf / np.max(vf) * 255
         vf_rgb = np.clip(vf_rgb, 0, 255)
-        nib.save(nib.Nifti1Image(vf_rgb.astype(np.uint8),
-                                 vol.affine), args.vf_rgb)
+        res_img = nib.Nifti1Image(vf_rgb.astype(np.uint8),
+                                 vol.affine)
+        StatefulImage.create_from(res_img, vol).save(args.vf_rgb)
 
 
 if __name__ == "__main__":

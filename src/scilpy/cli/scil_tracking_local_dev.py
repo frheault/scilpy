@@ -58,7 +58,7 @@ from dipy.io.stateful_tractogram import Origin
 from dipy.io.streamline import save_tractogram
 from nibabel.streamlines import detect_format, TrkFile
 
-from scilpy.io.image import assert_same_resolution
+from scilpy.io.image import assert_same_resolution, StatefulImage
 from scilpy.io.utils import (add_processes_arg, add_sphere_arg,
                              add_verbose_arg,
                              assert_inputs_exist, assert_outputs_exist,
@@ -214,8 +214,8 @@ def main():
     our_origin = Origin('center')
 
     logging.info("Loading seeding mask.")
-    seed_img = nib.load(args.in_seed)
-    seed_data = seed_img.get_fdata(caching='unchanged', dtype=float)
+    seed_img = StatefulImage.load(args.in_seed)
+    seed_data = seed_img.get_fdata(dtype=float)
     if np.count_nonzero(seed_data) == 0:
         raise IOError('The image {} is empty. '
                       'It can\'t be loaded as '
@@ -248,15 +248,15 @@ def main():
                          ' value > 0.'.format(args.in_seed))
 
     logging.info("Loading tracking mask.")
-    mask_img = nib.load(args.in_mask)
-    mask_data = mask_img.get_fdata(caching='unchanged', dtype=float)
+    mask_img = StatefulImage.load(args.in_mask)
+    mask_data = mask_img.get_fdata(dtype=float)
     mask_res = mask_img.header.get_zooms()[:3]
     mask = DataVolume(mask_data, mask_res, args.mask_interp)
 
     # ------- INSTANTIATING PROPAGATOR -------
     logging.info("Loading ODF SH data.")
-    odf_sh_img = nib.load(args.in_odf)
-    odf_sh_data = odf_sh_img.get_fdata(caching='unchanged', dtype=float)
+    odf_sh_img = StatefulImage.load(args.in_odf)
+    odf_sh_data = odf_sh_img.get_fdata(dtype=float)
     odf_sh_res = odf_sh_img.header.get_zooms()[:3]
     dataset = DataVolume(odf_sh_data, odf_sh_res, args.sh_interp)
 
@@ -281,8 +281,8 @@ def main():
     # ------- INSTANTIATING RAP OBJECT -------
     if args.rap_mask:
         logging.info("Loading RAP mask.")
-        rap_img = nib.load(args.rap_mask)
-        rap_data = rap_img.get_fdata(caching='unchanged', dtype=float)
+        rap_img = StatefulImage.load(args.rap_mask)
+        rap_data = rap_img.get_fdata(dtype=float)
         rap_res = rap_img.header.get_zooms()[:3]
         rap_mask = DataVolume(rap_data, rap_res, args.mask_interp)
     else:

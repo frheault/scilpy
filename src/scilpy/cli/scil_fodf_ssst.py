@@ -21,6 +21,7 @@ from scilpy.gradients.bvec_bval_tools import (check_b0_threshold,
                                               normalize_bvecs,
                                               is_normalized_bvecs)
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_b0_thresh_arg, add_overwrite_arg,
                              add_processes_arg, add_sh_basis_args,
                              add_skip_b0_check_arg, add_verbose_arg,
@@ -77,12 +78,12 @@ def main():
 
     # Loading data
     full_frf = np.loadtxt(args.frf_file)
-    vol = nib.load(args.in_dwi)
+    vol = StatefulImage.load(args.in_dwi)
     data = vol.get_fdata(dtype=np.float32)
     bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
 
     # Checking mask
-    mask = get_data_as_mask(nib.load(args.mask),
+    mask = get_data_as_mask(StatefulImage.load(args.mask),
                             dtype=bool) if args.mask else None
 
     sh_order = args.sh_order
@@ -134,9 +135,10 @@ def main():
                                  is_input_legacy=True,
                                  is_output_legacy=is_legacy,
                                  nbr_processes=args.nbr_processes)
-    nib.save(nib.Nifti1Image(shm_coeff.astype(np.float32),
+    res_img = nib.Nifti1Image(shm_coeff.astype(np.float32),
                              affine=vol.affine,
-                             header=vol.header), args.out_fODF)
+                             header=vol.header)
+    StatefulImage.create_from(res_img, vol).save(args.out_fODF)
 
 
 if __name__ == "__main__":

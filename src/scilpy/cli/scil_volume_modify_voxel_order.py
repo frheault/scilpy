@@ -68,15 +68,19 @@ def main():
     assert_inputs_exist(parser, args.in_image)
     assert_outputs_exist(parser, args, args.out_image)
 
-    img = nib.load(args.in_image)
     simg = StatefulImage.load(args.in_image)
 
     parsed_voxel_order = parse_voxel_order(args.new_voxel_order,
-                                           dimensions=len(img.shape))
+                                           dimensions=len(simg.shape))
 
     simg.reorient(parsed_voxel_order)
 
-    nib.save(simg, args.out_image)
+    # To ensure the new orientation is the one saved to disk,
+    # we update the original orientation info.
+    simg._original_axcodes = simg.axcodes
+    simg._original_affine = simg.affine.copy()
+
+    simg.save(args.out_image)
 
 
 if __name__ == "__main__":

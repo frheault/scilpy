@@ -61,6 +61,7 @@ from dipy.core.gradients import gradient_table
 from scilpy.dwi.operations import compute_residuals
 from scilpy.image.volume_operations import smooth_to_fwhm
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, add_skip_b0_check_arg,
                              add_verbose_arg, assert_inputs_exist,
                              assert_outputs_exist, add_tolerance_arg,
@@ -184,10 +185,10 @@ def main():
     assert_headers_compatible(parser, args.in_dwi, args.mask)
 
     # Loading
-    img = nib.load(args.in_dwi)
+    img = StatefulImage.load(args.in_dwi)
     data = img.get_fdata(dtype=np.float32)
     affine = img.affine
-    mask = get_data_as_mask(nib.load(args.mask),
+    mask = get_data_as_mask(StatefulImage.load(args.mask),
                             dtype=bool) if args.mask else None
 
     bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
@@ -235,31 +236,38 @@ def main():
         FA = dkifit.fa
         FA[np.isnan(FA)] = 0
         FA = np.clip(FA, 0, 1)
-        nib.save(nib.Nifti1Image(FA.astype(np.float32), affine), args.dki_fa)
+        res_img = nib.Nifti1Image(FA.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, img).save(args.dki_fa)
 
     if args.dki_md:
         MD = dkifit.md
-        nib.save(nib.Nifti1Image(MD.astype(np.float32), affine), args.dki_md)
+        res_img = nib.Nifti1Image(MD.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, img).save(args.dki_md)
 
     if args.dki_ad:
         AD = dkifit.ad
-        nib.save(nib.Nifti1Image(AD.astype(np.float32), affine), args.dki_ad)
+        res_img = nib.Nifti1Image(AD.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, img).save(args.dki_ad)
 
     if args.dki_rd:
         RD = dkifit.rd
-        nib.save(nib.Nifti1Image(RD.astype(np.float32), affine), args.dki_rd)
+        res_img = nib.Nifti1Image(RD.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, img).save(args.dki_rd)
 
     if args.mk:
         MK = dkifit.mk(min_k, max_k)
-        nib.save(nib.Nifti1Image(MK.astype(np.float32), affine), args.mk)
+        res_img = nib.Nifti1Image(MK.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, img).save(args.mk)
 
     if args.ak:
         AK = dkifit.ak(min_k, max_k)
-        nib.save(nib.Nifti1Image(AK.astype(np.float32), affine), args.ak)
+        res_img = nib.Nifti1Image(AK.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, img).save(args.ak)
 
     if args.rk:
         RK = dkifit.rk(min_k, max_k)
-        nib.save(nib.Nifti1Image(RK.astype(np.float32), affine), args.rk)
+        res_img = nib.Nifti1Image(RK.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, img).save(args.rk)
 
     if args.msk or args.msd:
         # Compute MSDKI
@@ -270,11 +278,13 @@ def main():
             MSK = msdki_fit.msk
             MSK[np.isnan(MSK)] = 0
             MSK = np.clip(MSK, min_k, max_k)
-            nib.save(nib.Nifti1Image(MSK.astype(np.float32), affine), args.msk)
+            res_img = nib.Nifti1Image(MSK.astype(np.float32), affine)
+            StatefulImage.create_from(res_img, img).save(args.msk)
 
         if args.msd:
             MSD = msdki_fit.msd
-            nib.save(nib.Nifti1Image(MSD.astype(np.float32), affine), args.msd)
+            res_img = nib.Nifti1Image(MSD.astype(np.float32), affine)
+            StatefulImage.create_from(res_img, img).save(args.msd)
 
     if args.dki_residual:
         S0 = np.mean(data[..., gtab.b0s_mask], axis=-1)
@@ -282,8 +292,8 @@ def main():
 
         R, _ = compute_residuals(data_p, data,
                                  b0s_mask=gtab.b0s_mask, mask=mask)
-        nib.save(nib.Nifti1Image(R.astype(np.float32), affine),
-                 args.dki_residual)
+        res_img = nib.Nifti1Image(R.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, img).save(args.dki_residual)
 
 
 if __name__ == "__main__":

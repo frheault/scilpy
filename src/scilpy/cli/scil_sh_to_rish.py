@@ -28,6 +28,7 @@ import nibabel as nib
 import numpy as np
 
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, assert_inputs_exist,
                              assert_outputs_exist, add_verbose_arg,
                              assert_headers_compatible)
@@ -68,9 +69,9 @@ def main():
     assert_headers_compatible(parser, args.in_sh, optional=args.mask)
 
     # Load data
-    sh_img = nib.load(args.in_sh)
+    sh_img = StatefulImage.load(args.in_sh)
     sh = sh_img.get_fdata(dtype=np.float32)
-    mask = get_data_as_mask(nib.load(args.mask),
+    mask = get_data_as_mask(StatefulImage.load(args.mask),
                             dtype=bool) if args.mask else None
 
     # Precompute output filenames to check if they exist
@@ -89,7 +90,8 @@ def main():
     # Save each RISH feature as a separate file
     for i, fname in enumerate(output_fnames):
         logging.info("Saving {}".format(fname))
-        nib.save(nib.Nifti1Image(rish[..., i], sh_img.affine), fname)
+        res_img = nib.Nifti1Image(rish[..., i], sh_img.affine)
+        StatefulImage.create_from(res_img, sh_img).save(fname)
 
 
 if __name__ == '__main__':

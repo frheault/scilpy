@@ -93,6 +93,7 @@ import nibabel as nib
 import numpy as np
 
 from scilpy.io.mti import add_common_args_mti, load_and_verify_mti
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg,
                              assert_inputs_exist, add_verbose_arg,
                              assert_output_dirs_exist_and_empty)
@@ -186,12 +187,13 @@ def main():
                         optional=args.in_mtoff_t1 or [] + [args.mask])
 
     # Define reference image for saving maps
-    affine = nib.load(input_maps_lists[0][0]).affine
+    simg_ref = StatefulImage.load(input_maps_lists[0][0])
+    affine = simg_ref.affine
 
     # Other checks, loading, saving contrast_maps.
     single_echo, flip_angles, rep_times, B1_map, contrast_maps = \
         load_and_verify_mti(args, parser, input_maps_lists, extended_dir,
-                            affine, contrast_names)
+                            simg_ref, contrast_names)
 
     # Compute MTR
     if 'positive' in contrast_names_og and 'negative' in contrast_names_og:
@@ -221,12 +223,15 @@ def main():
         R1app = 1000 / T1app  # convert 1/ms to 1/s
         if args.extended:
             if 'positive' in contrast_names_og:
-                nib.save(nib.Nifti1Image(MTsat_sp, affine),
+                res_img = nib.Nifti1Image(MTsat_sp, affine)
+                StatefulImage.create_from(res_img, simg_ref).save(
                          os.path.join(extended_dir, "MTsat_positive.nii.gz"))
             if 'negative' in contrast_names_og:
-                nib.save(nib.Nifti1Image(MTsat_sn, affine),
+                res_img = nib.Nifti1Image(MTsat_sn, affine)
+                StatefulImage.create_from(res_img, simg_ref).save(
                          os.path.join(extended_dir, "MTsat_negative.nii.gz"))
-            nib.save(nib.Nifti1Image(R1app, affine),
+            res_img = nib.Nifti1Image(R1app, affine)
+            StatefulImage.create_from(res_img, simg_ref).save(
                      os.path.join(extended_dir, "apparent_R1.nii.gz"))
 
         # Apply model-based B1 correction
@@ -269,7 +274,8 @@ def main():
                      for curr_name in img_names]
 
     for img_to_save, name in zip(img_data_list, img_names):
-        nib.save(nib.Nifti1Image(img_to_save.astype(np.float32), affine),
+        res_img = nib.Nifti1Image(img_to_save.astype(np.float32), affine)
+        StatefulImage.create_from(res_img, simg_ref).save(
                  os.path.join(output_dir, name + '.nii.gz'))
 
 

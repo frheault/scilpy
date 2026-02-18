@@ -8,6 +8,7 @@ import numpy as np
 
 from scilpy.image.volume_math import concatenate
 from scilpy.io.image import load_img
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import get_acq_parameters
 from scilpy.reconst.mti import adjust_B1_map_intensities, smooth_B1_map, \
     process_contrast_map
@@ -71,7 +72,7 @@ def add_common_args_mti(p):
                         'smoothing, in number of voxels. [%(default)s]')
 
 
-def load_and_verify_mti(args, parser, input_maps_lists, extended_dir, affine,
+def load_and_verify_mti(args, parser, input_maps_lists, extended_dir, simg_ref,
                         contrast_names):
     """
     Common verifications and loading for both MT and ihMT scripts.
@@ -84,8 +85,8 @@ def load_and_verify_mti(args, parser, input_maps_lists, extended_dir, affine,
         A list of lists of inputs.
     extended_dir: str
         The folder for extended savings (with option args.extended).
-    affine: np.ndarray
-        A reference affine to save files.
+    simg_ref: StatefulImage
+        A reference image to save files.
     contrast_names: list
         A list of prefixes for each sub-list in input_maps_lists.
 
@@ -131,8 +132,9 @@ def load_and_verify_mti(args, parser, input_maps_lists, extended_dir, affine,
     np.seterr(divide='ignore', invalid='ignore')
 
     # Load B1 image
+    affine = simg_ref.affine
     B1_map, flip_angles = _prepare_B1_map(args, flip_angles, extended_dir,
-                                          affine)
+                                          simg_ref)
 
     # Define contrasts maps names
     if args.filtering:
@@ -157,8 +159,9 @@ def load_and_verify_mti(args, parser, input_maps_lists, extended_dir, affine,
                                                   filtering=args.filtering,
                                                   single_echo=single_echo))
         if args.extended:
-            nib.save(nib.Nifti1Image(contrast_maps[idx].astype(np.float32),
-                                     affine),
+            res_img = nib.Nifti1Image(contrast_maps[idx].astype(np.float32),
+                                     affine)
+            StatefulImage.create_from(res_img, simg_ref).save(
                      os.path.join(extended_dir,
                                   contrast_names[idx] + '.nii.gz'))
 
@@ -204,7 +207,7 @@ def _parse_acquisition_parameters(args):
     return rep_times, flip_angles
 
 
-def _prepare_B1_map(args, flip_angles, extended_dir, affine):
+def _prepare_B1_map(args, flip_angles, extended_dir, simg_ref):
     """
     Prepare the B1 map for MTI B1+ inhomogeneity correction. Flip angles might
     also be affected.
@@ -216,8 +219,8 @@ def _prepare_B1_map(args, flip_angles, extended_dir, affine):
         The flip angles, in radian
     extended_dir: str
         The folder for extended savings (with option args.extended).
-    affine: np.ndarray
-        A reference affine to save files.
+    simg_ref: StatefulImage
+        A reference image to save files.
 
     Returns
     -------
@@ -228,7 +231,7 @@ def _prepare_B1_map(args, flip_angles, extended_dir, affine):
     """
     B1_map = None
     if args.in_B1_map and args.in_mtoff_t1:
-        B1_img = nib.load(args.in_B1_map)
+        B1_img = StatefulImage.load(args.in_B1_map)
         B1_map = B1_img.get_fdata(dtype=np.float32)
         B1_map = adjust_B1_map_intensities(B1_map, nominal=args.B1_nominal)
         B1_map = smooth_B1_map(B1_map, wdims=args.B1_smooth_dims)
@@ -237,6 +240,7 @@ def _prepare_B1_map(args, flip_angles, extended_dir, affine):
             flip_angles[0] *= B1_map
             flip_angles[1] *= B1_map
         if args.extended:
-            nib.save(nib.Nifti1Image(B1_map, affine),
+            res_img = nib.Nifti1Image(B1_map, simg_ref.affine)
+            StatefulImage.create_from(res_img, simg_ref).save(
                      os.path.join(extended_dir, "B1_map.nii.gz"))
     return B1_map, flip_angles

@@ -21,6 +21,7 @@ from dipy.data import SPHERE_FILES, get_sphere
 from dipy.io import read_bvals_bvecs
 
 from scilpy.gradients.bvec_bval_tools import DEFAULT_B0_THRESHOLD
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
                              add_sh_basis_args, add_verbose_arg,
                              assert_inputs_exist, assert_outputs_exist,
@@ -145,7 +146,7 @@ def main():
         bvals, _ = read_bvals_bvecs(args.in_bval, None)
 
     # Load SH
-    vol_sh = nib.load(args.in_sh)
+    vol_sh = StatefulImage.load(args.in_sh)
     data_sh = vol_sh.get_fdata(dtype=np.float32)
 
     # Sample SF from SH
@@ -178,7 +179,7 @@ def main():
     # Add b0 images to SF (and bvals if necessary) if --in_b0 was provided
     if args.in_b0:
         # Load b0
-        vol_b0 = nib.load(args.in_b0)
+        vol_b0 = StatefulImage.load(args.in_b0)
         data_b0 = vol_b0.get_fdata(dtype=args.dtype)
         if data_b0.ndim == 3:
             data_b0 = data_b0[..., np.newaxis]
@@ -209,7 +210,8 @@ def main():
         np.savetxt(args.out_bvec, new_bvecs.T, fmt='%.8f')
 
     # Save SF
-    nib.save(nib.Nifti1Image(sf, vol_sh.affine), args.out_sf)
+    res_img = nib.Nifti1Image(sf, vol_sh.affine)
+    StatefulImage.create_from(res_img, vol_sh).save(args.out_sf)
 
 
 if __name__ == "__main__":

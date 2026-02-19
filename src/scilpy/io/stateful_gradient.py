@@ -18,7 +18,8 @@ class StatefulGradient:
     follows the MRtrix convention, accounting for the image affine.
     """
 
-    def __init__(self, bvals, bvecs, simg, space='fsl', normalize=True):
+    def __init__(self, bvals, bvecs, simg, space='fsl', normalize=True,
+                 use_original_affine=False):
         """
         Parameters
         ----------
@@ -31,10 +32,12 @@ class StatefulGradient:
         space: str
             The coordinate space of the input bvecs.
             'fsl': Gradients are defined relative to the image axes.
-                   This transformation uses the CURRENT affine of the simg.
             'rasmm': Gradients are already in RAS mm (World space).
         normalize: bool
             If True, bvecs will be normalized to unit length.
+        use_original_affine: bool
+            If True and space='fsl', uses simg.original_affine for conversion.
+            Otherwise uses simg.affine.
         """
         if not isinstance(simg, StatefulImage):
             raise TypeError("Reference image must be a StatefulImage instance.")
@@ -53,7 +56,8 @@ class StatefulGradient:
             bvecs[idx] /= norms[idx, None]
 
         if space.lower() == 'fsl':
-            self._bvecs = self._axes_to_rasmm(bvecs, simg.affine)
+            affine = simg.original_affine if use_original_affine else simg.affine
+            self._bvecs = self._axes_to_rasmm(bvecs, affine)
         elif space.lower() == 'rasmm':
             self._bvecs = bvecs
         else:
@@ -139,7 +143,11 @@ class StatefulGradient:
         if bvals is None:
             # Create dummy bvals if not provided
             bvals = np.zeros(len(bvecs))
-        return cls(bvals, bvecs, simg, space='fsl', normalize=normalize)
+        
+        # When loading from disk, bvecs are assumed relative to the 
+        # ORIGINAL on-disk orientation of the image.
+        return cls(bvals, bvecs, simg, space='fsl', normalize=normalize, 
+                   use_original_affine=True)
 
     def save(self, bval_path, bvec_path):
         """

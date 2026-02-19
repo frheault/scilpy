@@ -62,6 +62,11 @@ def main():
 
     simg = StatefulImage.load(args.in_image)
 
+    # Load gradients relative to the image AS IT IS ON DISK
+    sgrad = None
+    if args.in_bvec:
+        sgrad = get_stateful_gradient_from_args(args, simg)
+
     parsed_voxel_order = parse_voxel_order(args.new_voxel_order,
                                            dimensions=len(simg.shape))
 
@@ -75,10 +80,7 @@ def main():
 
     simg.save(args.out_image)
 
-    if args.in_bvec:
-        # Load gradients relative to the image
-        sgrad = get_stateful_gradient_from_args(args, simg)
-        
+    if sgrad:
         # Save uses the current simg._original_affine (which we just updated to the new order)
         sgrad.save('/tmp/dummy.bval', args.out_bvec)
 

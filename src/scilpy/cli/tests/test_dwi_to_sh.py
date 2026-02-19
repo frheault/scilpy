@@ -6,6 +6,7 @@ import tempfile
 
 from scilpy import SCILPY_HOME
 from scilpy.io.fetcher import fetch_data, get_testing_files_dict
+from scilpy.tests.utils import check_output_existence_and_affine
 
 # If they already exist, this only takes 5 seconds (check md5sum)
 fetch_data(get_testing_files_dict(), keys=['processing.zip'])
@@ -28,6 +29,7 @@ def test_execution_processing(script_runner, monkeypatch):
     ret = script_runner.run(['scil_dwi_to_sh', in_dwi, in_bval,
                             in_bvec, 'sh_1000.nii.gz'])
     assert ret.success
+    check_output_existence_and_affine('sh_1000.nii.gz', in_dwi)
 
     # Test wrong b0. Current minimal b-value is 5.
     ret = script_runner.run(['scil_dwi_to_sh', in_dwi, in_bval,

@@ -6,6 +6,7 @@ import tempfile
 
 from scilpy import SCILPY_HOME
 from scilpy.io.fetcher import fetch_data, get_testing_files_dict
+from scilpy.tests.utils import check_output_existence_and_affine
 
 fetch_data(get_testing_files_dict(), keys=['commit_amico.zip'])
 tmp_dir = tempfile.TemporaryDirectory()
@@ -36,3 +37,6 @@ def test_execution_processing(script_runner, monkeypatch):
                              '--sh_basis', 'tournier07',
                              '--processes', '1', '-f'])
     assert ret.success
+    check_output_existence_and_affine(['wm_fodf.nii.gz', 'gm_fodf.nii.gz',
+                                       'csf_fodf.nii.gz', 'vf.nii.gz'],
+                                      in_dwi)

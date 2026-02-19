@@ -6,6 +6,7 @@ import tempfile
 
 from scilpy import SCILPY_HOME
 from scilpy.io.fetcher import fetch_data, get_testing_files_dict
+from scilpy.tests.utils import check_output_existence_and_affine
 
 # If they already exist, this only takes 5 seconds (check md5sum)
 fetch_data(get_testing_files_dict(), keys=['processing.zip'])
@@ -21,5 +22,7 @@ def test_execution_processing(script_runner, monkeypatch):
     monkeypatch.chdir(os.path.expanduser(tmp_dir.name))
     in_sh = os.path.join(SCILPY_HOME, 'processing',
                          'sh.nii.gz')
-    ret = script_runner.run(['scil_sh_to_rish', in_sh, 'rish.nii.gz'])
+    ret = script_runner.run(['scil_sh_to_rish', in_sh, 'rish_'])
     assert ret.success
+    check_output_existence_and_affine(['rish_0.nii.gz', 'rish_2.nii.gz',
+                                       'rish_4.nii.gz'], in_sh)

@@ -6,6 +6,7 @@ import tempfile
 
 from scilpy import SCILPY_HOME
 from scilpy.io.fetcher import fetch_data, get_testing_files_dict
+from scilpy.tests.utils import check_output_existence_and_affine
 
 # If they already exist, this only takes 5 seconds (check md5sum)
 fetch_data(get_testing_files_dict(), keys=['processing.zip'])
@@ -28,6 +29,8 @@ def test_execution_processing(script_runner, monkeypatch):
                              '--processes', '1'])
 
     assert ret.success
+    check_output_existence_and_affine(['fd.nii.gz', 'fs.nii.gz', 'ff.nii.gz'],
+                                      in_bingham)
 
 
 def test_execution_processing_mask(script_runner, monkeypatch):
@@ -42,6 +45,8 @@ def test_execution_processing_mask(script_runner, monkeypatch):
                              '--processes', '1', '--mask', in_mask, '-f'])
 
     assert ret.success
+    check_output_existence_and_affine(['fd.nii.gz', 'fs.nii.gz', 'ff.nii.gz'],
+                                      in_bingham)
 
 
 def test_execution_processing_not_all(script_runner, monkeypatch):
@@ -55,3 +60,4 @@ def test_execution_processing_not_all(script_runner, monkeypatch):
                              'fs.nii.gz', '-f'])
 
     assert ret.success
+    check_output_existence_and_affine('fs.nii.gz', in_bingham)

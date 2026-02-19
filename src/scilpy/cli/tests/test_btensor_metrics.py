@@ -6,6 +6,7 @@ import tempfile
 
 from scilpy import SCILPY_HOME
 from scilpy.io.fetcher import fetch_data, get_testing_files_dict
+from scilpy.tests.utils import check_output_existence_and_affine
 
 fetch_data(get_testing_files_dict(), keys=['btensor_testdata.zip'])
 tmp_dir = tempfile.TemporaryDirectory()
@@ -129,3 +130,6 @@ def test_execution_processing(script_runner, monkeypatch):
                              '--do_weight_pa', '--do_multiple_s0',
                              '--processes', '1', '-f'])
     assert (ret.success)
+    check_output_existence_and_affine(['md.nii.gz', 'ufa.nii.gz', 'mk_i.nii.gz',
+                                       'mk_a.nii.gz', 'mk_t.nii.gz'],
+                                      in_dwi_lin)

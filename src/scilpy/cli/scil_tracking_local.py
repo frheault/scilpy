@@ -66,12 +66,12 @@ from dipy.data import get_sphere
 from dipy.tracking import utils as track_utils
 from dipy.tracking.local_tracking import LocalTracking
 from dipy.tracking.stopping_criterion import BinaryStoppingCriterion
-from scilpy.io.image import get_data_as_mask
+from scilpy.io.image import get_data_as_mask, StatefulImage
 from scilpy.io.utils import (add_sphere_arg, add_verbose_arg,
                              assert_headers_compatible, assert_inputs_exist,
                              assert_outputs_exist, parse_sh_basis_arg,
                              verify_compression_th, load_matrix_in_any_format)
-from scilpy.tracking.tracker import GPUTacker
+from scilpy.tracking.tracker import GPUTacker, have_opencl
 from scilpy.tracking.utils import (add_mandatory_options_tracking,
                                    add_out_options, add_seeding_options,
                                    add_tracking_options,
@@ -144,6 +144,10 @@ def main():
     logging.getLogger().setLevel(logging.getLevelName(args.verbose))
 
     if args.use_gpu:
+        if not have_opencl:
+            raise ImportError('OpenCL is not available. GPU tracking cannot be '
+                              'used. Please install pyopencl and ensure you have '
+                              'a working OpenCL implementation.')
         batch_size = args.batch_size or DEFAULT_BATCH_SIZE
         sh_interp = args.sh_interp or DEFAULT_SH_INTERP
         forward_only = args.forward_only or DEFAULT_FWD_ONLY
@@ -187,14 +191,14 @@ def main():
     # when providing information to dipy (i.e. working as if in voxel space)
     # will not yield correct results. Tracking is performed in voxel space
     # in both the GPU and CPU cases.
-    odf_sh_img = nib.load(args.in_odf)
+    odf_sh_img = StatefulImage.load(args.in_odf)
     if not np.allclose(np.mean(odf_sh_img.header.get_zooms()[:3]),
                        odf_sh_img.header.get_zooms()[0], atol=1e-03):
         parser.error(
             'ODF SH file is not isotropic. Tracking cannot be ran robustly.')
 
     logging.debug("Loading masks and finding seeds.")
-    mask_data = get_data_as_mask(nib.load(args.in_mask), dtype=bool)
+    mask_data = get_data_as_mask(StatefulImage.load(args.in_mask), dtype=bool)
 
     if args.npv:
         nb_seeds = args.npv
@@ -208,7 +212,7 @@ def main():
 
     voxel_size = odf_sh_img.header.get_zooms()[0]
     vox_step_size = args.step_size / voxel_size
-    seed_img = nib.load(args.in_seed)
+    seed_img = StatefulImage.load(args.in_seed)
 
     sh_basis, is_legacy = parse_sh_basis_arg(args)
 

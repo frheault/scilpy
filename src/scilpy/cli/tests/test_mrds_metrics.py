@@ -6,6 +6,7 @@ import tempfile
 
 from scilpy import SCILPY_HOME
 from scilpy.io.fetcher import fetch_data, get_testing_files_dict
+from scilpy.tests.utils import check_output_existence_and_affine
 
 # If they already exist, this only takes 5 seconds (check md5sum)
 fetch_data(get_testing_files_dict(), keys=['mrds.zip'])
@@ -26,6 +27,9 @@ def test_execution_mrds_all_metrics(script_runner, monkeypatch):
     # no option
     ret = script_runner.run(['scil_mrds_metrics', in_evals, '-f'])
     assert ret.success
+    check_output_existence_and_affine(['mrds_fa.nii.gz', 'mrds_ad.nii.gz',
+                                       'mrds_rd.nii.gz', 'mrds_md.nii.gz'],
+                                      in_evals)
 
 
 def test_execution_mrds_not_all_metrics(script_runner, monkeypatch):
@@ -46,3 +50,8 @@ def test_execution_mrds_not_all_metrics(script_runner, monkeypatch):
                              '--md', 'sub-01_MRDS_MD.nii.gz',
                              '-f'])
     assert ret.success
+    check_output_existence_and_affine(['sub-01_MRDS_FA.nii.gz',
+                                       'sub-01_MRDS_AD.nii.gz',
+                                       'sub-01_MRDS_RD.nii.gz',
+                                       'sub-01_MRDS_MD.nii.gz'],
+                                      in_evals)

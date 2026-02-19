@@ -6,6 +6,7 @@ import tempfile
 
 from scilpy import SCILPY_HOME
 from scilpy.io.fetcher import fetch_data, get_testing_files_dict
+from scilpy.tests.utils import check_output_existence_and_affine
 
 # If they already exist, this only takes 5 seconds (check md5sum)
 fetch_data(get_testing_files_dict(), keys=['processing.zip'])
@@ -36,3 +37,7 @@ def test_execution_processing(script_runner, monkeypatch):
                              '--dki_residual', 'dki_res.nii.gz',
                              '--mask', in_mask])
     assert ret.success
+    check_output_existence_and_affine(['dki_fa.nii.gz', 'dki_md.nii.gz',
+                                       'dki_rd.nii.gz', 'dki_ad.nii.gz',
+                                       'dki_res.nii.gz'],
+                                      in_dwi)

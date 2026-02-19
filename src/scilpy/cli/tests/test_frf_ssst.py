@@ -77,3 +77,4 @@ def test_execution_processing(script_runner, monkeypatch):
     ret = script_runner.run(['scil_frf_ssst', in_dwi,
                             in_bval, in_bvec, 'frf.txt', '-f'])
     assert ret.success
+    assert os.path.isfile('frf.txt')

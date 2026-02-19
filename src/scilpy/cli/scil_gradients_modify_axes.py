@@ -72,6 +72,7 @@ def main():
 
     # Format final order
     axes_to_flip, swapped_order = find_flip_swap_from_order(args.final_order)
+    print(axes_to_flip, swapped_order)
 
     # Verifying that user did not ask for, ex, -xxy
     if len(np.unique(swapped_order)) != 3:

@@ -10,6 +10,7 @@ import pytest
 
 from scilpy.io.dvc import pull_test_case_package
 from scilpy.gpuparallel.opencl_utils import have_opencl
+from scilpy.tests.utils import check_output_existence_and_affine
 
 # If they already exist, this only takes 5 seconds (check md5sum)
 test_data_root = pull_test_case_package("aodf")
@@ -44,6 +45,7 @@ def test_asym_basis_output_gpu(script_runner, in_fodf,
     if have_opencl:
         # if we have opencl the script should not raise an error
         assert ret.success
+        check_output_existence_and_affine('out_fodf1.nii.gz', in_fodf)
 
         # output should be close to expected (but not exactly equal because
         # the python implementation is float64 while gpu is float32)
@@ -76,6 +78,7 @@ def test_asym_basis_output(script_runner, in_fodf, expected_fodf, monkeypatch):
                              '--include_center'])
 
     assert ret.success
+    check_output_existence_and_affine('out_fodf1.nii.gz', in_fodf)
 
     ret_fodf = nib.load("out_fodf1.nii.gz")
     test_fodf = nib.load(expected_fodf)
@@ -102,6 +105,7 @@ def test_asym_input(script_runner, in_fodf, expected_fodf, monkeypatch):
                              '--include_center'])
 
     assert ret.success
+    check_output_existence_and_affine('out_fodf1.nii.gz', in_fodf)
 
     ret_fodf = nib.load("out_fodf1.nii.gz")
     test_fodf = nib.load(expected_fodf)
@@ -122,6 +126,7 @@ def test_cosine_method(script_runner, in_fodf, out_fodf, monkeypatch):
                              '--sh_basis', 'descoteaux07_legacy'])
 
     assert ret.success
+    check_output_existence_and_affine('out_fodf1.nii.gz', in_fodf)
 
     ret_fodf = nib.load("out_fodf1.nii.gz")
     test_fodf = nib.load(out_fodf)

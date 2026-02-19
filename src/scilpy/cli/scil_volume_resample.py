@@ -100,15 +100,15 @@ def main():
 
     ref_img = None
     if args.ref:
-        ref_img = nib.load(args.ref)
+        ref_img = StatefulImage.load(args.ref)
 
         # Must not verify that headers are compatible. But can verify that, at
         # least, the first columns of their affines are compatible.
-        img_zoom_invert = [1 / zoom for zoom in ref_img.header.get_zooms()[:3]]
+        img_zoom_invert = [1 / zoom for zoom in simg.header.get_zooms()[:3]]
         ref_zoom_invert = [1 / zoom for zoom in ref_img.header.get_zooms()[:3]]
 
-        img_affine = np.dot(simg.affine[:3, :3], img_zoom_invert)
-        ref_affine = np.dot(ref_img.affine[:3, :3], ref_zoom_invert)
+        img_affine = np.dot(simg.affine[:3, :3], np.diag(img_zoom_invert))
+        ref_affine = np.dot(ref_img.affine[:3, :3], np.diag(ref_zoom_invert))
 
         if not np.allclose(img_affine, ref_affine):
             parser.error("The --ref image should have the same affine as the "

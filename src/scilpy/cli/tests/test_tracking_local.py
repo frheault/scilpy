@@ -13,6 +13,9 @@ fetch_data(get_testing_files_dict(), keys=['tracking.zip'])
 tmp_dir = tempfile.TemporaryDirectory()
 
 
+from scilpy.gpuparallel.opencl_utils import have_opencl
+
+
 def test_help_option(script_runner):
     ret = script_runner.run(['scil_tracking_local', '--help'])
     assert ret.success
@@ -83,7 +86,10 @@ def test_execution_sphere_gpu(script_runner, monkeypatch):
                              '--use_gpu', '--sphere', 'symmetric362',
                              '--npv', '1'])
 
-    assert not ret.success
+    if have_opencl:
+        assert ret.success
+    else:
+        assert not ret.success
 
 
 def test_sh_interp_without_gpu(script_runner, monkeypatch):

@@ -6,6 +6,7 @@ import tempfile
 
 from scilpy import SCILPY_HOME
 from scilpy.io.fetcher import fetch_data, get_testing_files_dict
+from scilpy.tests.utils import check_output_existence_and_affine
 
 # If they already exist, this only takes 5 seconds (check md5sum)
 fetch_data(get_testing_files_dict(), keys=['atlas.zip'])
@@ -28,6 +29,7 @@ def test_execution_add(script_runner, monkeypatch):
     ret = script_runner.run(['scil_volume_math', 'addition',
                              in_img_1, in_img_2, in_img_3, 'brainstem.nii.gz'])
     assert ret.success
+    check_output_existence_and_affine('brainstem.nii.gz', in_img_1)
 
 
 def test_execution_low_thresh(script_runner, monkeypatch):
@@ -36,6 +38,7 @@ def test_execution_low_thresh(script_runner, monkeypatch):
     ret = script_runner.run(['scil_volume_math', 'lower_threshold',
                              in_img, '1', 'brainstem_bin.nii.gz'])
     assert ret.success
+    check_output_existence_and_affine('brainstem_bin.nii.gz', in_img)
 
 
 def test_execution_low_mult(script_runner, monkeypatch):
@@ -44,6 +47,7 @@ def test_execution_low_mult(script_runner, monkeypatch):
     ret = script_runner.run(['scil_volume_math', 'multiplication',
                              in_img, '16', 'brainstem_unified.nii.gz'])
     assert ret.success
+    check_output_existence_and_affine('brainstem_unified.nii.gz', in_img)
 
 
 def test_execution_concatenate(script_runner, monkeypatch):
@@ -58,6 +62,7 @@ def test_execution_concatenate(script_runner, monkeypatch):
                              in_img_1, in_img_2, in_img_3, in_img_4, in_img_5,
                              in_img_6, 'concat_ids.nii.gz'])
     assert ret.success
+    check_output_existence_and_affine('concat_ids.nii.gz', in_img_1)
 
 
 def test_execution_concatenate_4D(script_runner, monkeypatch):
@@ -70,3 +75,4 @@ def test_execution_concatenate_4D(script_runner, monkeypatch):
                              in_img_1, in_img_2, in_img_3, in_img_4,
                              'concat_ids_4d.nii.gz'])
     assert ret.success
+    check_output_existence_and_affine('concat_ids_4d.nii.gz', in_img_1)

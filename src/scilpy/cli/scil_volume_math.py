@@ -93,10 +93,10 @@ def main():
     # Load all input masks.
     input_img = []
     for input_arg in args.in_args:
-        if not is_float(input_arg) and \
-                not is_header_compatible(ref_img, input_arg):
-            parser.error('Inputs do not have a compatible header.')
         img, dtype = load_img(input_arg)
+        if not isinstance(img, float) and \
+                not is_header_compatible(ref_img, img):
+            parser.error('Inputs do not have a compatible header.')
         if not isinstance(img, float):
             args.data_type = img.header.get_data_dtype() if args.data_type is None else args.data_type
 

@@ -5,6 +5,7 @@ import os
 import tempfile
 
 from scilpy.io.dvc import pull_test_case_package
+from scilpy.tests.utils import check_output_existence_and_affine
 
 # If they already exist, this only takes 5 seconds (check md5sum)
 test_data_root = pull_test_case_package("aodf")
@@ -28,6 +29,12 @@ def test_execution(script_runner, monkeypatch):
                              '--sphere', 'repulsion100', '--processes', '1',
                              '-f'])
     assert ret.success
+    check_output_existence_and_affine(['asi_map.nii.gz', 'odd_power_map.nii.gz',
+                                       'asym_peaks.nii.gz',
+                                       'asym_peak_values.nii.gz',
+                                       'asym_peak_indices.nii.gz',
+                                       'nufid.nii.gz'],
+                                      in_fodf)
 
 
 def test_assert_not_all(script_runner, monkeypatch):
@@ -51,6 +58,7 @@ def test_execution_not_all(script_runner, monkeypatch):
                              '--processes', '1',
                              '-f'])
     assert ret.success
+    check_output_existence_and_affine('asi_map.nii.gz', in_fodf)
 
 
 def test_assert_symmetric_input(script_runner, monkeypatch):
@@ -77,3 +85,4 @@ def test_execution_symmetric_input(script_runner, monkeypatch):
                              '--nufid', 'nufid.nii.gz',
                              '--processes', '4', '-f'])
     assert ret.success
+    check_output_existence_and_affine('nufid.nii.gz', in_fodf)

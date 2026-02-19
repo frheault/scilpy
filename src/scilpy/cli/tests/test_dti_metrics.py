@@ -6,6 +6,7 @@ import tempfile
 
 from scilpy import SCILPY_HOME
 from scilpy.io.fetcher import fetch_data, get_testing_files_dict
+from scilpy.tests.utils import check_output_existence_and_affine
 
 # If they already exist, this only takes 5 seconds (check md5sum)
 fetch_data(get_testing_files_dict(), keys=['processing.zip'])
@@ -38,6 +39,9 @@ def test_execution_processing_diff_metrics(script_runner, monkeypatch):
                              '--residual', 'residual.nii.gz',
                              '--mask', mask_uint8])
     assert ret.success
+    check_output_existence_and_affine(['fa.nii.gz', 'md.nii.gz', 'ad.nii.gz',
+                                       'rd.nii.gz', 'residual.nii.gz'],
+                                      in_dwi)
 
 
 def test_execution_processing_b0_threshold(script_runner, monkeypatch):
@@ -74,3 +78,4 @@ def test_execution_processing_rgb(script_runner, monkeypatch):
                              in_bval, in_bvec, '--not_all',
                              '--rgb', 'rgb.nii.gz', '-f'])
     assert ret.success
+    check_output_existence_and_affine('rgb.nii.gz', in_dwi)

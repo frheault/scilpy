@@ -14,12 +14,14 @@ import logging
 import os
 import subprocess
 
-from dipy.io.gradients import read_bvals_bvecs
-import numpy as np
-
+from scilpy.io.gradients import read_bvals_bvecs
+from scilpy.io.stateful_image import StatefulImage
+from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg, add_verbose_arg,
+                             add_stateful_gradient_args,
                              assert_fsl_options_exist,
-                             assert_inputs_exist)
+                             assert_inputs_exist,
+                             get_stateful_gradient_from_args)
 from scilpy.preprocessing.distortion_correction import \
     (create_acqparams, create_index, create_multi_topup_index,
      create_non_zero_norm_bvecs)
@@ -37,11 +39,7 @@ def _build_arg_parser():
                         'merge in the same order as for prepare_topup using '
                         'scil_dwi_concatenate.')
 
-    p.add_argument('in_bvals',
-                   help='Input b-values file in FSL format.')
-
-    p.add_argument('in_bvecs',
-                   help='Input b-vectors file in FSL format.')
+    add_stateful_gradient_args(p, mandatory=True)
 
     p.add_argument('in_mask',
                    help='Binary brain mask.')
@@ -145,7 +143,15 @@ def main():
             'with the same sampling as the forward phase image, '
             'use --lsr_resampling for better results from Eddy.')
 
-    bvals, bvecs = read_bvals_bvecs(args.in_bvals, args.in_bvecs)
+    vol = StatefulImage.load(args.in_dwi)
+    sgrad = get_stateful_gradient_from_args(args, vol)
+    bvals = sgrad.bvals
+    bvecs = sgrad.bvecs # These are in World space (RASmm) 
+    # but the original script transformed raw bvecs. 
+    # Actually, eddy expects bvecs in FSL (axis) space. 
+    # So we should use sgrad.get_bvecs_reoriented(vol.original_affine) 
+    # to be safe, which is what sgrad.save() does.
+
     bvals_min = bvals.min()
     b0_threshold = args.b0_thr
     if bvals_min < 0 or bvals_min > b0_threshold:
@@ -181,7 +187,10 @@ def main():
 
         index = create_index(bvals, n_rev=n_rev)
 
-    bvecs = create_non_zero_norm_bvecs(bvecs)
+    # Eddy needs non-zero bvecs for all volumes including b0s
+    # We get them in axis-space first
+    bvecs_axis = sgrad.get_bvecs_reoriented(vol.original_affine)
+    bvecs_axis = create_non_zero_norm_bvecs(bvecs_axis)
 
     if not os.path.exists(args.out_directory):
         os.makedirs(args.out_directory)
@@ -190,8 +199,12 @@ def main():
     np.savetxt(acqparams_path, acqparams, fmt='%1.4f', delimiter=' ')
     index_path = os.path.join(args.out_directory, 'index.txt')
     np.savetxt(index_path, index, fmt='%i', newline=" ")
+    
+    # Save axis-space bvecs for eddy
     bvecs_path = os.path.join(args.out_directory, 'non_zero_norm.bvecs')
-    np.savetxt(bvecs_path, bvecs.T, fmt="%.8f")
+    # Use StatefulGradient to save correctly
+    out_sgrad = StatefulGradient(bvals, bvecs_axis, vol, space='fsl')
+    out_sgrad.save('/tmp/dummy.bval', bvecs_path)
 
     additional_args = ""
     if args.topup is not None:
@@ -205,8 +218,9 @@ def main():
 
     if args.lsr_resampling:
         if len(bvals) - n_rev == n_rev:
-            forward_bb = bvals[:n_rev, None] * bvecs[:n_rev, :]
-            reverse_bb = bvals[n_rev:, None] * bvecs[n_rev:, :]
+            # Directions check: use World space vectors for more robust comparison
+            forward_bb = bvals[:n_rev, None] * sgrad.to_rasmm()[:n_rev, :]
+            reverse_bb = bvals[n_rev:, None] * sgrad.to_rasmm()[n_rev:, :]
             if np.allclose(forward_bb, reverse_bb):
                 additional_args += "--resamp=lsr --fep=true "
             else:
@@ -223,7 +237,7 @@ def main():
     eddy = '{0} --imain={1} --mask={2} --acqp={3} --index={4}' \
            ' --bvecs={5} --bvals={6} --out={7} --data_is_shelled {8}' \
         .format(args.eddy_cmd, args.in_dwi, args.in_mask, acqparams_path,
-                index_path, bvecs_path, args.in_bvals, output_path,
+                index_path, bvecs_path, args.in_bval, output_path,
                 additional_args)
 
     if args.out_script:

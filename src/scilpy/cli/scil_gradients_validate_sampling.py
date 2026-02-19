@@ -36,7 +36,7 @@ import logging
 import numpy as np
 import os
 
-from dipy.io.gradients import read_bvals_bvecs
+from scilpy.io.gradients import read_bvals_bvecs
 
 from scilpy.io.utils import (add_overwrite_arg, add_verbose_arg,
                              add_b0_thresh_arg, add_skip_b0_check_arg,

@@ -22,16 +22,18 @@ import sys
 import tempfile
 
 import amico
-from dipy.io.gradients import read_bvals_bvecs
 import numpy as np
 
-from scilpy.io.gradients import fsl2mrtrix
+from scilpy.io.gradients import fsl2mrtrix, read_bvals_bvecs
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg,
                              add_processes_arg,
+                             add_stateful_gradient_args,
                              add_verbose_arg,
                              assert_inputs_exist,
                              assert_output_dirs_exist_and_empty,
                              assert_headers_compatible,
+                             get_stateful_gradient_from_args,
                              redirect_stdout_c, add_tolerance_arg,
                              add_skip_b0_check_arg)
 from scilpy.gradients.bvec_bval_tools import (check_b0_threshold,
@@ -47,10 +49,7 @@ def _build_arg_parser():
     p.add_argument('in_dwi',
                    help='DWI file acquired with a NODDI compatible protocol '
                         '(single-shell data not suited).')
-    p.add_argument('in_bval',
-                   help='b-values filename, in FSL format (.bval).')
-    p.add_argument('in_bvec',
-                   help='b-vectors filename, in FSL format (.bvec).')
+    add_stateful_gradient_args(p, mandatory=True)
 
     p.add_argument('--mask',
                    help='Brain mask filename.')
@@ -114,11 +113,13 @@ def main():
     assert_headers_compatible(parser, args.in_dwi, optional=args.mask)
 
     # Generate a scheme file from the bvals and bvecs files
-    bvals, _ = read_bvals_bvecs(args.in_bval, args.in_bvec)
-    _ = check_b0_threshold(bvals.min(), b0_thr=args.tolerance,
+    vol = StatefulImage.load(args.in_dwi)
+    sgrad = get_stateful_gradient_from_args(args, vol)
+    
+    _ = check_b0_threshold(sgrad.bvals.min(), b0_thr=args.tolerance,
                            skip_b0_check=args.skip_b0_check,
                            overwrite_with_min=False)
-    shells_centroids, indices_shells = identify_shells(bvals, args.tolerance,
+    shells_centroids, indices_shells = identify_shells(sgrad.bvals, args.tolerance,
                                                        round_centroids=True)
 
     non_b0_shells = shells_centroids[shells_centroids > args.tolerance]
@@ -138,7 +139,7 @@ def main():
     tmp_bval_filename = os.path.join(tmp_dir.name, 'bval')
     np.savetxt(tmp_bval_filename, shells_centroids[indices_shells],
                newline=' ', fmt='%i')
-    fsl2mrtrix(tmp_bval_filename, args.in_bvec, tmp_scheme_filename)
+    fsl2mrtrix(tmp_bval_filename, args.in_bvec, tmp_scheme_filename, simg=vol)
 
     with redirected_stdout:
         # Load the data

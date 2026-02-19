@@ -22,6 +22,7 @@ from scilpy.gradients.bvec_bval_tools import DEFAULT_B0_THRESHOLD
 from scilpy.utils.filenames import split_name_with_nii
 from scilpy.utils.spatial import RAS_AXES_NAMES
 from scilpy.io.stateful_image import StatefulImage
+from scilpy.io.stateful_gradient import StatefulGradient
 
 
 FLOATING_POINTS_PRECISION = 12
@@ -406,6 +407,55 @@ def parse_sh_basis_arg(args):
         return sh_basis, is_legacy, out_sh_basis, is_out_legacy
     else:
         return sh_basis, is_legacy
+
+
+def add_stateful_gradient_args(parser, mandatory=False):
+    """
+    Add stateful gradient arguments.
+
+    Parameters
+    ----------
+    parser: argparse.ArgumentParser object
+        Parser.
+    mandatory: bool, optional
+        Whether these arguments are mandatory.
+    """
+    if mandatory:
+        bval_name = 'in_bval'
+        bvec_name = 'in_bvec'
+    else:
+        bval_name = '--in_bval'
+        bvec_name = '--in_bvec'
+
+    parser.add_argument(bval_name,
+                        help='b-values filename, in FSL format (.bval).')
+    parser.add_argument(bvec_name,
+                        help='b-vectors filename, in FSL format (.bvec).')
+
+
+def get_stateful_gradient_from_args(args, simg, normalize=True):
+    """
+    Get a StatefulGradient object from the parsed arguments.
+
+    Parameters
+    ----------
+    args: argparse namespace
+        Args as created by argparse.
+    simg: StatefulImage
+        The reference image.
+    normalize: bool
+        Whether to normalize the b-vectors.
+
+    Returns
+    -------
+    StatefulGradient
+        The stateful gradient object.
+    """
+    if not hasattr(args, 'in_bvec') or not args.in_bvec:
+        return None
+    in_bval = args.in_bval if hasattr(args, 'in_bval') else None
+    return StatefulGradient.load(in_bval, args.in_bvec, simg,
+                                 normalize=normalize)
 
 
 def add_labelmap_screenshot_args(parser, default_cmap=None, default_alpha=0.5,

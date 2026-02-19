@@ -9,7 +9,6 @@ import argparse
 import logging
 
 from dipy.core.gradients import gradient_table
-from dipy.io.gradients import read_bvals_bvecs
 import nibabel as nib
 import numpy as np
 
@@ -18,9 +17,11 @@ from scilpy.io.image import get_data_as_mask
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_b0_thresh_arg, add_overwrite_arg,
                              add_sh_basis_args, add_skip_b0_check_arg,
+                             add_stateful_gradient_args,
                              add_verbose_arg, assert_inputs_exist,
                              assert_outputs_exist, parse_sh_basis_arg,
-                             assert_headers_compatible)
+                             assert_headers_compatible,
+                             get_stateful_gradient_from_args)
 from scilpy.reconst.sh import compute_sh_coefficients
 from scilpy.version import version_string
 
@@ -31,10 +32,7 @@ def _build_arg_parser():
                                 epilog=version_string)
     p.add_argument('in_dwi',
                    help='Path of the dwi volume.')
-    p.add_argument('in_bval',
-                   help='Path of the b-value file, in FSL format.')
-    p.add_argument('in_bvec',
-                   help='Path of the b-vector file, in FSL format.')
+    add_stateful_gradient_args(p, mandatory=True)
     p.add_argument('out_sh',
                    help='Name of the output SH file to save.')
 
@@ -72,13 +70,13 @@ def main():
     vol = StatefulImage.load(args.in_dwi)
     dwi = vol.get_fdata(dtype=np.float32)
 
-    bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
+    sgrad = get_stateful_gradient_from_args(args, vol)
 
     # gtab.b0s_mask in used in compute_sh_coefficients to get the b0s.
-    args.b0_threshold = check_b0_threshold(bvals.min(),
+    args.b0_threshold = check_b0_threshold(sgrad.bvals.min(),
                                            b0_thr=args.b0_threshold,
                                            skip_b0_check=args.skip_b0_check)
-    gtab = gradient_table(bvals, bvecs=bvecs, b0_threshold=args.b0_threshold)
+    gtab = gradient_table(sgrad.bvals, bvecs=sgrad.bvecs, b0_threshold=args.b0_threshold)
 
     sh_basis, is_legacy = parse_sh_basis_arg(args)
 

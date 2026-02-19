@@ -18,13 +18,13 @@ import argparse
 import logging
 
 import nibabel as nib
-
 import numpy as np
 
 from dipy.core.gradients import get_bval_indices
-from dipy.io.gradients import read_bvals_bvecs
 
+from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, assert_inputs_exist,
                              assert_outputs_exist, add_verbose_arg,
                              assert_headers_compatible)
@@ -78,10 +78,9 @@ def main():
     assert_outputs_exist(parser, args, args.out_avg)
     assert_headers_compatible(parser, args.in_dwi, args.mask)
 
-    img = nib.load(args.in_dwi)
+    img = StatefulImage.load(args.in_dwi)
     data = img.get_fdata(dtype=np.float32)
-    affine = img.affine
-    mask = get_data_as_mask(nib.load(args.mask),
+    mask = get_data_as_mask(StatefulImage.load(args.mask),
                             dtype='uint8') if args.mask else None
 
     # Read bvals (bvecs not needed at this point)
@@ -126,8 +125,8 @@ def main():
     if args.mask:
         powder_avg = powder_avg * mask
 
-    powder_avg_img = nib.Nifti1Image(powder_avg.astype(np.float32), affine)
-    nib.save(powder_avg_img, args.out_avg)
+    powder_avg_img = nib.Nifti1Image(powder_avg.astype(np.float32), img.affine)
+    StatefulImage.create_from(powder_avg_img, img).save(args.out_avg)
 
 
 if __name__ == "__main__":

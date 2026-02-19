@@ -13,18 +13,18 @@ import logging
 import os
 
 from dipy.core.gradients import gradient_table, get_bval_indices
-from dipy.io.gradients import read_bvals_bvecs
 from dipy.reconst.dti import fractional_anisotropy, TensorModel
 from fury import actor
 import nibabel as nib
 import numpy as np
 
+from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.stateful_image import StatefulImage
+from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg,
                              add_verbose_arg,
                              assert_inputs_exist,
                              assert_outputs_exist)
-from scilpy.gradients.bvec_bval_tools import normalize_bvecs
 from scilpy.image.volume_operations import register_image
 from scilpy.utils.spatial import RAS_AXES_NAMES
 from scilpy.utils.spatial import get_axis_name
@@ -69,7 +69,7 @@ def prepare_data_for_actors(dwi_filename, bvals_filename, bvecs_filename,
     dwi_data = dwi_img.get_fdata(dtype=np.float32)
     dwi_affine = dwi_img.affine
 
-    bvals, bvecs = read_bvals_bvecs(bvals_filename, bvecs_filename)
+    sgrad = read_bvals_bvecs(bvals_filename, bvecs_filename, simg=dwi_img)
 
     target_template_img = StatefulImage.load(target_template_filename)
     target_template_data = target_template_img.get_fdata(dtype=np.float32)
@@ -83,13 +83,13 @@ def prepare_data_for_actors(dwi_filename, bvals_filename, bvecs_filename,
                                     x_slice, y_slice, z_slice)
 
     # Extract B0
-    gtab = gradient_table(bvals, bvecs=normalize_bvecs(bvecs),
+    gtab = gradient_table(sgrad.bvals, bvecs=sgrad.bvecs,
                           b0_threshold=10)
     b0_idx = np.where(gtab.b0s_mask)[0]
     mean_b0 = np.mean(dwi_data[..., b0_idx], axis=3, dtype=dwi_data.dtype)
 
     if shells:
-        indices = [get_bval_indices(bvals, shell) for shell in shells]
+        indices = [get_bval_indices(sgrad.bvals, shell) for shell in shells]
         indices = np.sort(np.hstack(indices))
 
         if len(indices) < 1:
@@ -97,16 +97,16 @@ def prepare_data_for_actors(dwi_filename, bvals_filename, bvecs_filename,
                 'There are no volumes that have the supplied b-values.')
         shell_data = np.zeros((dwi_data.shape[:-1] + (len(indices),)),
                               dtype=dwi_data.dtype)
-        shell_bvecs = np.zeros((len(indices), 3))
+        shell_bvecs_rasmm = np.zeros((len(indices), 3))
         shell_bvals = np.zeros((len(indices),))
-        for i, indice in enumerate(indices):
-            shell_data[..., i] = dwi_data[..., indice]
-            shell_bvals[i] = bvals[indice]
-            shell_bvecs[i, :] = bvecs[indice, :]
+        for i, index in enumerate(indices):
+            shell_data[..., i] = dwi_data[..., index]
+            shell_bvals[i] = sgrad.bvals[index]
+            shell_bvecs_rasmm[i, :] = sgrad.bvecs[index, :]
     else:
         shell_data = dwi_data
-        shell_bvals = bvals
-        shell_bvecs = bvecs
+        shell_bvals = sgrad.bvals
+        shell_bvecs_rasmm = sgrad.bvecs
 
     # Register the DWI data to the template
     transformed_dwi, transformation = register_image(
@@ -114,11 +114,16 @@ def prepare_data_for_actors(dwi_filename, bvals_filename, bvecs_filename,
         transformation_type='rigid',
         dwi=shell_data)
 
-    # Rotate gradients
-    rotated_bvecs = np.dot(shell_bvecs, transformation[0:3, 0:3])
+    # Rotate gradients (RASmm vectors rotated by rigid transform)
+    rotated_bvecs_rasmm = np.dot(shell_bvecs_rasmm, transformation[0:3, 0:3])
 
-    rotated_bvecs = normalize_bvecs(rotated_bvecs)
-    rotated_gtab = gradient_table(shell_bvals, bvecs=rotated_bvecs,
+    # No need to manually normalize if StatefulGradient already does it, 
+    # but transformation might affect it slightly.
+    norms = np.linalg.norm(rotated_bvecs_rasmm, axis=1)
+    idx = norms > 0
+    rotated_bvecs_rasmm[idx] /= norms[idx, None]
+    
+    rotated_gtab = gradient_table(shell_bvals, bvecs=rotated_bvecs_rasmm,
                                   b0_threshold=10)
 
     # Get tensors

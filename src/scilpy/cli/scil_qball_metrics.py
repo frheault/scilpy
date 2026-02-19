@@ -27,17 +27,16 @@ from dipy.direction.peaks import (peaks_from_model,
                                   reshape_peaks_for_visualization)
 from dipy.reconst.shm import QballModel, CsaOdfModel, anisotropic_power
 
-from scilpy.gradients.bvec_bval_tools import (check_b0_threshold,
-                                              is_normalized_bvecs,
-                                              normalize_bvecs)
+from scilpy.gradients.bvec_bval_tools import check_b0_threshold
 from scilpy.io.image import get_data_as_mask
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_b0_thresh_arg, add_overwrite_arg,
                              add_processes_arg, add_sh_basis_args,
-                             add_skip_b0_check_arg, add_verbose_arg,
-                             assert_inputs_exist, assert_outputs_exist,
-                             parse_sh_basis_arg, validate_nbr_processes,
-                             assert_headers_compatible)
+                             add_skip_b0_check_arg, add_stateful_gradient_args,
+                             add_verbose_arg, assert_inputs_exist,
+                             assert_outputs_exist, parse_sh_basis_arg,
+                             validate_nbr_processes, assert_headers_compatible,
+                             get_stateful_gradient_from_args)
 from scilpy.version import version_string
 
 
@@ -51,10 +50,7 @@ def _build_arg_parser():
 
     p.add_argument('in_dwi',
                    help='Path of the input diffusion volume.')
-    p.add_argument('in_bval',
-                   help='Path of the bvals file, in FSL format.')
-    p.add_argument('in_bvec',
-                   help='Path of the bvecs file, in FSL format.')
+    add_stateful_gradient_args(p, mandatory=True)
 
     add_overwrite_arg(p)
     p.add_argument('--sh_order', default=4, type=int,
@@ -129,20 +125,14 @@ def main():
     # Load data
     img = StatefulImage.load(args.in_dwi)
     data = img.get_fdata(dtype=np.float32)
-
-    bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
-
-    if not is_normalized_bvecs(bvecs):
-        logging.warning('Your b-vectors do not seem normalized... Normalizing '
-                        'now.')
-        bvecs = normalize_bvecs(bvecs)
+    sgrad = get_stateful_gradient_from_args(args, img)
 
     # Usage of gtab.b0s_mask in dipy's models is not very well documented, but
     # we can see that it is indeed used.
-    args.b0_threshold = check_b0_threshold(bvals.min(),
+    args.b0_threshold = check_b0_threshold(sgrad.bvals.min(),
                                            b0_thr=args.b0_threshold,
                                            skip_b0_check=args.skip_b0_check)
-    gtab = gradient_table(bvals, bvecs=bvecs, b0_threshold=args.b0_threshold)
+    gtab = gradient_table(sgrad.bvals, bvecs=sgrad.bvecs, b0_threshold=args.b0_threshold)
 
     sphere = get_sphere(name='symmetric724')
     sh_basis, is_legacy = parse_sh_basis_arg(args)

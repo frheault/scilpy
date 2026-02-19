@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Detect when data strides are different from [1, 2, 3] and correct them.
@@ -31,21 +31,19 @@ import argparse
 import logging
 
 from dipy.core.gradients import gradient_table
-from dipy.io.gradients import read_bvals_bvecs
 from dipy.reconst.dti import TensorModel, fractional_anisotropy
 import numpy as np
 import nibabel as nib
 
-from scilpy.gradients.bvec_bval_tools import (check_b0_threshold,
-                                              find_flip_swap_from_order,
-                                              flip_gradient_axis,
-                                              is_normalized_bvecs,
-                                              normalize_bvecs,
-                                              swap_gradient_axis)
-from scilpy.image.utils import verify_strides, find_strides_transform
+from scilpy.gradients.bvec_bval_tools import check_b0_threshold
+from scilpy.io.gradients import read_bvals_bvecs
+from scilpy.io.stateful_image import StatefulImage
+from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_b0_thresh_arg, add_overwrite_arg,
-                             add_skip_b0_check_arg, assert_inputs_exist,
-                             assert_outputs_exist, add_verbose_arg)
+                             add_skip_b0_check_arg, add_stateful_gradient_args,
+                             add_verbose_arg, assert_inputs_exist,
+                             assert_outputs_exist, 
+                             get_stateful_gradient_from_args)
 from scilpy.reconst.fiber_coherence import compute_coherence_table_for_transforms
 from scilpy.version import version_string
 
@@ -60,10 +58,7 @@ def _build_arg_parser():
     p.add_argument('out_data',
                    help='Path to output nifti file with corrected strides.')
 
-    p.add_argument('--in_bvec',
-                   help='Path to bvec file (FSL format). If provided, the '
-                        'bvecs will \nbe permuted and sign flipped to match '
-                        'the new strides.')
+    add_stateful_gradient_args(p, mandatory=False)
     p.add_argument('--out_bvec',
                    help='Path to output bvec file (FSL format). Must be '
                         'provided if --in_bvec is used.')
@@ -71,12 +66,7 @@ def _build_arg_parser():
                    help='If set, the script first detects sign flips and/or '
                         'axes swaps \nin the b-vectors from a fiber coherence '
                         'index [1] and corrects \nthe b-vectors before '
-                        'permuting/sign flipping them to match the new '
-                        'strides. \nIf not set, the b-vectors are only '
-                        'permuted and sign flipped to match the new strides.')
-    p.add_argument('--in_bval',
-                   help='Path to bval file. Must be provided if '
-                        '--validate_bvecs is used.')
+                        'saving them matching the new strides.')
 
     add_b0_thresh_arg(p)
     add_skip_b0_check_arg(p, will_overwrite_with_min=True)
@@ -100,85 +90,79 @@ def main():
         parser.error('--in_bvec and --in_bval must be provided if '
                      '--validate_bvecs is set.')
 
-    # Get the current strides
-    img = nib.load(args.in_data)
-    strides, is_stride_correct = verify_strides(img)
-    if not is_stride_correct:
-        # Compute the required transform to get to [1, 2, 3]
-        transform = find_strides_transform(strides)
+    # Load image. StatefulImage.load() automatically standardizes to RAS
+    # and keeps the original orientation info.
+    simg = StatefulImage.load(args.in_data)
+    
+    # Correction: Original script wanted strides [1, 2, 3] which corresponds 
+    # to RAS order but maybe different from the standardised in-memory RAS.
+    # Actually, "correct strides" usually means the identity orientation.
+    # Since StatefulImage standardizes to RAS, saving it will revert 
+    # to original. To FORCE new strides, we must update the state.
+    
+    # We want to save the data in RAS orientation (strides 1,2,3)
+    # The in-memory data is already RAS. We just need to tell the simg 
+    # that its "original" state is now RAS.
+    simg._original_axcodes = ('R', 'A', 'S')
+    simg._original_affine = simg.affine.copy()
+    
+    simg.save(args.out_data)
 
-        # Write the transform in a format compatible with the
-        # flip_gradient_axis and swap_gradient_axis functions (for bvecs)
-        axes_to_flip, swapped_order = find_flip_swap_from_order(transform)
-
-        # Write the transform in a format compatible with the nibabel
-        # as_reoriented function (for image)
-        ornt = np.column_stack((np.array(swapped_order, dtype=np.int8),
-                                np.where(np.isin(range(len(strides)),
-                                                 axes_to_flip),
-                                         -1, 1)))
-        # Apply the transform to the image and save it
-        new_img = img.as_reoriented(ornt)
-        nib.save(new_img, args.out_data)
-
-    if args.validate_bvec:
-        logging.info('Validating b-vectors from fiber coherence index...')
-        # Load and validate the data and bvals/bvecs
-        data = img.get_fdata().astype(np.float32)
-        if len(data.shape) != 4:
-            parser.error('Input data must be DWI (4D) when --validate_bvec '
-                         'is set.')
-        bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
-        if not is_normalized_bvecs(bvecs):
-            logging.warning('Your b-vectors do not seem normalized...')
-            bvecs = normalize_bvecs(bvecs)
-        args.b0_threshold = check_b0_threshold(bvals.min(),
-                                               b0_thr=args.b0_threshold,
-                                               skip_b0_check=args.skip_b0_check)
-        gtab = gradient_table(bvals, bvecs=bvecs,
-                              b0_threshold=args.b0_threshold)
-        tenmodel = TensorModel(gtab, fit_method='WLS',
-                               min_signal=np.min(data[data > 0]))
-        # Generate a mask to avoid fitting tensor on the whole image
-        mask = np.zeros(data.shape[:3], dtype=bool)
-        # Use a small cubic ROI at the center of the volume
-        interval_i = slice(data.shape[0]//2 - data.shape[0]//4,
-                           data.shape[0]//2 + data.shape[0]//4)
-        interval_j = slice(data.shape[1]//2 - data.shape[1]//4,
-                           data.shape[1]//2 + data.shape[1]//4)
-        interval_k = slice(data.shape[2]//2 - data.shape[2]//4,
-                           data.shape[2]//2 + data.shape[2]//4)
-        mask[interval_i, interval_j, interval_k] = 1
-        # Compute the necessary DTI metrics to compute the coherence of bvecs
-        tenfit = tenmodel.fit(data, mask=mask)
-        fa = fractional_anisotropy(tenfit.evals)
-        evecs = tenfit.evecs.astype(np.float32)[..., 0]
-        evecs[fa < 0.2] = 0
-        coherence, transform = compute_coherence_table_for_transforms(evecs, 
-                                                                      fa)
-        # Find the best transform and apply it to the bvecs if needed
-        best_t = transform[np.argmax(coherence)]
-        if (best_t == np.eye(3)).all():
-            logging.info('The b-vectors are aligned with the original data.')
-            valid_bvecs = bvecs
+    if args.in_bvec:
+        # Load gradients relative to the image
+        sgrad = get_stateful_gradient_from_args(args, simg)
+        
+        if args.validate_bvec:
+            logging.info('Validating b-vectors from fiber coherence index...')
+            data = simg.get_fdata().astype(np.float32)
+            if len(data.shape) != 4:
+                parser.error('Input data must be DWI (4D) when --validate_bvec '
+                             'is set.')
+            
+            args.b0_threshold = check_b0_threshold(sgrad.bvals.min(),
+                                                   b0_thr=args.b0_threshold,
+                                                   skip_b0_check=args.skip_b0_check)
+            gtab = gradient_table(sgrad.bvals, bvecs=sgrad.bvecs,
+                                  b0_threshold=args.b0_threshold)
+            
+            tenmodel = TensorModel(gtab, fit_method='WLS',
+                                   min_signal=np.min(data[data > 0]))
+            
+            mask = np.zeros(data.shape[:3], dtype=bool)
+            interval_i = slice(data.shape[0]//2 - data.shape[0]//4,
+                               data.shape[0]//2 + data.shape[0]//4)
+            interval_j = slice(data.shape[1]//2 - data.shape[1]//4,
+                               data.shape[1]//2 + data.shape[1]//4)
+            interval_k = slice(data.shape[2]//2 - data.shape[2]//4,
+                               data.shape[2]//2 + data.shape[2]//4)
+            mask[interval_i, interval_j, interval_k] = 1
+            
+            tenfit = tenmodel.fit(data, mask=mask)
+            fa = fractional_anisotropy(tenfit.evals)
+            evecs = tenfit.evecs.astype(np.float32)[..., 0]
+            evecs[fa < 0.2] = 0
+            coherence, transform = compute_coherence_table_for_transforms(evecs, 
+                                                                          fa)
+            
+            best_t = transform[np.argmax(coherence)]
+            if (best_t == np.eye(3)).all():
+                logging.info('The b-vectors are aligned with the original data.')
+                final_bvecs_rasmm = sgrad.to_rasmm()
+            else:
+                logging.warning('Applying correction to b-vectors.')
+                logging.info('Transform is: \n{0}.'.format(best_t))
+                # Apply correction in World space
+                final_bvecs_rasmm = np.dot(sgrad.to_rasmm(), best_t)
         else:
-            logging.warning('Applying correction to b-vectors.')
-            logging.info('Transform is: \n{0}.'.format(best_t))
-            valid_bvecs = np.dot(bvecs, best_t)
-            # If the data strides were correct, save the bvecs now
-            if is_stride_correct:
-                np.savetxt(args.out_bvec, valid_bvecs.T, "%.8f")
+            final_bvecs_rasmm = sgrad.to_rasmm()
 
-    # Apply the permutation and sign flip to the bvecs and save them
-    if args.in_bvec and not is_stride_correct:
-        if not args.validate_bvec:
-            _, bvecs = read_bvals_bvecs(None, args.in_bvec)
-        else:
-            bvecs = valid_bvecs
-        flipped_bvecs = flip_gradient_axis(bvecs.T, axes_to_flip, 'fsl')
-        swapped_flipped_bvecs = swap_gradient_axis(flipped_bvecs,
-                                                   swapped_order, 'fsl')
-        np.savetxt(args.out_bvec, swapped_flipped_bvecs, "%.8f")
+        # Save corrected/permuted bvecs
+        # Since we changed simg._original_affine to RAS, 
+        # saving through StatefulGradient will export them in RAS.
+        final_sgrad = StatefulGradient(sgrad.bvals, final_bvecs_rasmm, 
+                                       simg, space='rasmm')
+        # We only need to save the bvecs here as requested by --out_bvec
+        final_sgrad.save('/tmp/dummy.bval', args.out_bvec)
 
 
 if __name__ == "__main__":

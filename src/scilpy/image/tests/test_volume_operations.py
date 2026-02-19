@@ -5,7 +5,7 @@ import tempfile
 
 import nibabel as nib
 import numpy as np
-from dipy.io.gradients import read_bvals_bvecs
+from scilpy.io.gradients import read_bvals_bvecs
 from numpy.testing import assert_equal, assert_almost_equal
 
 from scilpy import SCILPY_HOME

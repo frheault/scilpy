@@ -25,10 +25,11 @@ from scilpy.io.image import get_data_as_mask
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_b0_thresh_arg, add_overwrite_arg,
                              add_precision_arg,
-                             add_skip_b0_check_arg, add_verbose_arg,
-                             assert_inputs_exist, assert_outputs_exist,
-                             assert_roi_radii_format,
-                             assert_headers_compatible)
+                             add_skip_b0_check_arg, add_stateful_gradient_args,
+                             add_verbose_arg, assert_inputs_exist,
+                             assert_outputs_exist, assert_roi_radii_format,
+                             assert_headers_compatible,
+                             get_stateful_gradient_from_args)
 from scilpy.reconst.frf import compute_ssst_frf
 from scilpy.version import version_string
 
@@ -40,10 +41,7 @@ def _build_arg_parser():
 
     p.add_argument('in_dwi',
                    help='Path of the input diffusion volume.')
-    p.add_argument('in_bval',
-                   help='Path of the bvals file, in FSL format.')
-    p.add_argument('in_bvec',
-                   help='Path of the bvecs file, in FSL format.')
+    add_stateful_gradient_args(p, mandatory=True)
     p.add_argument('frf_file',
                    help='Path to the output FRF file, in .txt format, '
                         'saved by Numpy.')
@@ -107,8 +105,8 @@ def main():
     vol = StatefulImage.load(args.in_dwi)
     data = vol.get_fdata(dtype=np.float32)
 
-    bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
-    args.b0_threshold = check_b0_threshold(bvals.min(),
+    sgrad = get_stateful_gradient_from_args(args, vol)
+    args.b0_threshold = check_b0_threshold(sgrad.bvals.min(),
                                            b0_thr=args.b0_threshold,
                                            skip_b0_check=args.skip_b0_check)
 
@@ -118,7 +116,7 @@ def main():
                                dtype=bool) if args.mask_wm else None
 
     full_response = compute_ssst_frf(
-        data, bvals, bvecs, args.b0_threshold, mask=mask,
+        data, sgrad.bvals, sgrad.bvecs, args.b0_threshold, mask=mask,
         mask_wm=mask_wm, fa_thresh=args.fa_thresh,
         min_fa_thresh=args.min_fa_thresh, min_nvox=args.min_nvox,
         roi_radii=roi_radii, roi_center=args.roi_center)

@@ -8,9 +8,11 @@ Transform bvecs using an affine/rigid transformation.
 import argparse
 import logging
 
-from dipy.io.gradients import read_bvals_bvecs
 import numpy as np
 
+from scilpy.io.gradients import read_bvals_bvecs
+from scilpy.io.stateful_gradient import StatefulGradient
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, assert_inputs_exist,
                              assert_outputs_exist, add_verbose_arg,
                              load_matrix_in_any_format)
@@ -29,6 +31,11 @@ def _build_arg_parser():
                         'transformation, matrix (.txt, .npy or .mat).')
     p.add_argument('out_bvecs',
                    help='Output filename of the transformed bvecs.')
+
+    p.add_argument('--in_dwi',
+                   help='Reference DWI image to handle affine-aware '
+                        'bvec loading.\nIf not provided, identity RAS '
+                        'is assumed.')
 
     p.add_argument('--inverse', action='store_true',
                    help='Apply the inverse transformation.')
@@ -52,11 +59,22 @@ def main():
     if args.inverse:
         transfo = np.linalg.inv(transfo)
 
-    _, bvecs = read_bvals_bvecs(None, args.in_bvecs)
+    if args.in_dwi:
+        ref_simg = StatefulImage.load(args.in_dwi)
+    else:
+        # Identity assumption
+        ref_simg = StatefulImage(np.zeros((1, 1, 1)), np.eye(4))
+        ref_simg._original_affine = np.eye(4)
 
-    bvecs = bvecs @ transfo
+    sgrad = read_bvals_bvecs(None, args.in_bvecs, simg=ref_simg)
 
-    np.savetxt(str(args.out_bvecs), bvecs.T)
+    # Apply transform to world-space vectors
+    new_bvecs_rasmm = sgrad.to_rasmm() @ transfo
+
+    # Save transformed bvecs using original affine of reference
+    final_sgrad = StatefulGradient(np.zeros(len(new_bvecs_rasmm)), 
+                                   new_bvecs_rasmm, ref_simg, space='rasmm')
+    final_sgrad.save('/tmp/dummy.bval', args.out_bvecs)
 
 
 if __name__ == "__main__":

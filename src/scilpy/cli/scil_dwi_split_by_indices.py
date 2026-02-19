@@ -15,12 +15,16 @@ b-1500s from the rest of the b-1500s in an image, simply put x as an index.
 import argparse
 import logging
 
-from dipy.io import read_bvals_bvecs
 import nibabel as nib
 import numpy as np
 
-from scilpy.io.utils import (add_overwrite_arg, add_verbose_arg,
-                             assert_inputs_exist, assert_outputs_exist)
+from scilpy.io.gradients import read_bvals_bvecs
+from scilpy.io.stateful_image import StatefulImage
+from scilpy.io.stateful_gradient import StatefulGradient
+from scilpy.io.utils import (add_overwrite_arg, add_stateful_gradient_args,
+                             add_verbose_arg, assert_inputs_exist,
+                             assert_outputs_exist,
+                             get_stateful_gradient_from_args)
 from scilpy.version import version_string
 
 
@@ -31,10 +35,7 @@ def _build_arg_parser():
 
     p.add_argument('in_dwi',
                    help='The DW image file to split.')
-    p.add_argument('in_bval',
-                   help='The b-values file in FSL format (.bval).')
-    p.add_argument('in_bvec',
-                   help='The b-vectors file in FSL format (.bvec).')
+    add_stateful_gradient_args(p, mandatory=True)
 
     p.add_argument('out_basename',
                    help='The basename of the output files. Indices number '
@@ -63,9 +64,8 @@ def main():
 
     assert_inputs_exist(parser, [args.in_dwi, args.in_bval, args.in_bvec])
 
-    bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
-
-    img = nib.load(args.in_dwi)
+    img = StatefulImage.load(args.in_dwi)
+    sgrad = get_stateful_gradient_from_args(args, img)
 
     # Check if the indices fit inside the range of possible values
     if np.max(args.split_indices) >= img.shape[-1]:
@@ -90,14 +90,16 @@ def main():
     assert_outputs_exist(parser, args, out_names)
 
     for i in range(len(indices)-1):
-        data_split = img.dataobj[..., indices[i]:indices[i+1]]
-        bvals_split = bvals[indices[i]:indices[i+1]]
-        bvecs_split = bvecs[indices[i]:indices[i+1]]
+        data_split = img.get_fdata()[..., indices[i]:indices[i+1]]
+        bvals_split = sgrad.bvals[indices[i]:indices[i+1]]
+        bvecs_rasmm_split = sgrad.to_rasmm()[indices[i]:indices[i+1]]
+        
         # Saving the output files
-        nib.save(nib.Nifti1Image(data_split, img.affine, header=img.header),
-                 out_names[i] + ".nii.gz")
-        np.savetxt(out_names[i] + ".bval", bvals_split, '%d')
-        np.savetxt(out_names[i] + ".bvec", bvecs_split, '%0.15f')
+        new_img = nib.Nifti1Image(data_split, img.affine, header=img.header)
+        StatefulImage.create_from(new_img, img).save(out_names[i] + ".nii.gz")
+        
+        split_sgrad = StatefulGradient(bvals_split, bvecs_rasmm_split, img, space='rasmm')
+        split_sgrad.save(out_names[i] + ".bval", out_names[i] + ".bvec")
 
 
 if __name__ == "__main__":

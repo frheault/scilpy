@@ -16,9 +16,9 @@ between [1980, 2020] and round them to the value of 2000.
 import argparse
 import logging
 
-from dipy.io import read_bvals_bvecs
 import numpy as np
 
+from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.utils import (add_overwrite_arg, add_verbose_arg,
                              assert_inputs_exist, assert_outputs_exist)
 from scilpy.gradients.bvec_bval_tools import round_bvals_to_shell

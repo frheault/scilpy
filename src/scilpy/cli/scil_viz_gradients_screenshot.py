@@ -11,7 +11,7 @@ import numpy as np
 import os
 
 from dipy.data import get_sphere
-from dipy.io.gradients import read_bvals_bvecs
+from scilpy.io.gradients import read_bvals_bvecs
 
 from scilpy.gradients.bvec_bval_tools import identify_shells
 from scilpy.io.utils import (add_overwrite_arg,

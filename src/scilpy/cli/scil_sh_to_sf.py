@@ -18,14 +18,16 @@ import numpy as np
 from dipy.core.gradients import gradient_table
 from dipy.core.sphere import Sphere
 from dipy.data import SPHERE_FILES, get_sphere
-from dipy.io import read_bvals_bvecs
 
 from scilpy.gradients.bvec_bval_tools import DEFAULT_B0_THRESHOLD
+from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.stateful_image import StatefulImage
+from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
-                             add_sh_basis_args, add_verbose_arg,
-                             assert_inputs_exist, assert_outputs_exist,
-                             parse_sh_basis_arg, validate_nbr_processes)
+                             add_sh_basis_args, add_stateful_gradient_args,
+                             add_verbose_arg, assert_inputs_exist,
+                             assert_outputs_exist, parse_sh_basis_arg,
+                             validate_nbr_processes)
 from scilpy.reconst.sh import convert_sh_to_sf
 from scilpy.version import version_string
 
@@ -133,31 +135,31 @@ def main():
     nbr_processes = validate_nbr_processes(parser, args)
     sh_basis, is_legacy = parse_sh_basis_arg(args)
 
+    # Load SH
+    vol_sh = StatefulImage.load(args.in_sh)
+    data_sh = vol_sh.get_fdata(dtype=np.float32)
+
     # Load bvecs / bvals, verify options.
-    bvals = None
-    bvecs = None
+    sgrad = None
     if args.in_bvec:
         if not args.in_bval:
             parser.error(
                 "--in_bval is required when using --in_bvec, in order to "
                 "remove bvecs corresponding to b0 images.")
-        bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
+        sgrad = read_bvals_bvecs(args.in_bval, args.in_bvec, simg=vol_sh)
     elif args.in_bval:
+        # Just bvals, no bvecs (using sphere)
         bvals, _ = read_bvals_bvecs(args.in_bval, None)
-
-    # Load SH
-    vol_sh = StatefulImage.load(args.in_sh)
-    data_sh = vol_sh.get_fdata(dtype=np.float32)
 
     # Sample SF from SH
     if args.sphere:
         sphere = get_sphere(name=args.sphere)
     else:  # args.in_bvec is set.
-        gtab = gradient_table(bvals, bvecs=bvecs,
+        gtab = gradient_table(sgrad.bvals, bvecs=sgrad.bvecs,
                               b0_threshold=args.b0_threshold)
         # Remove bvecs corresponding to b0 images
-        bvecs = bvecs[np.logical_not(gtab.b0s_mask)]
-        sphere = Sphere(xyz=bvecs)
+        bvecs_clean = sgrad.bvecs[np.logical_not(gtab.b0s_mask)]
+        sphere = Sphere(xyz=bvecs_clean)
 
     sf = convert_sh_to_sf(data_sh, sphere,
                           input_basis=sh_basis,
@@ -171,8 +173,12 @@ def main():
     new_bvals = []
     if args.in_bval:
         # Compute average bval (except b0s), and create n out_bvals.
-        b0s_mask = bvals <= args.b0_threshold
-        avg_bval = np.mean(bvals[np.logical_not(b0s_mask)])
+        if sgrad:
+            bvals_for_avg = sgrad.bvals
+        else:
+            bvals_for_avg = bvals
+        b0s_mask = bvals_for_avg <= args.b0_threshold
+        avg_bval = np.mean(bvals_for_avg[np.logical_not(b0s_mask)])
 
         new_bvals = ([avg_bval] * len(sphere.theta))
 
@@ -207,7 +213,11 @@ def main():
 
     # Save new bvecs
     if args.out_bvec:
-        np.savetxt(args.out_bvec, new_bvecs.T, fmt='%.8f')
+        # Create a temporary StatefulGradient to save in FSL format
+        # relative to the original image orientation.
+        out_sgrad = StatefulGradient(np.zeros(len(new_bvecs)), 
+                                     new_bvecs, vol_sh, space='rasmm')
+        out_sgrad.save('/tmp/dummy.bval', args.out_bvec)
 
     # Save SF
     res_img = nib.Nifti1Image(sf, vol_sh.affine)

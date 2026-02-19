@@ -32,10 +32,12 @@ Reference:
 import argparse
 import logging
 
-from dipy.io.gradients import read_bvals_bvecs
 import numpy as np
 import nibabel as nib
 
+from scilpy.io.gradients import read_bvals_bvecs
+from scilpy.io.stateful_image import StatefulImage
+from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg, assert_inputs_exist,
                              assert_outputs_exist, add_verbose_arg,
                              assert_headers_compatible)
@@ -84,9 +86,14 @@ def main():
     assert_headers_compatible(parser, [args.in_peaks, args.in_FA],
                               optional=args.mask)
 
-    _, bvecs = read_bvals_bvecs(None, args.in_bvec)
-    fa = nib.load(args.in_FA).get_fdata()
-    peaks = nib.load(args.in_peaks).get_fdata()
+    peaks_simg = StatefulImage.load(args.in_peaks)
+    fa_simg = StatefulImage.load(args.in_FA)
+    
+    # Load bvecs relative to the peaks image (which is standard RAS in memory)
+    sgrad = read_bvals_bvecs(None, args.in_bvec, simg=peaks_simg)
+    
+    fa = fa_simg.get_fdata()
+    peaks = peaks_simg.get_fdata()
 
     if peaks.shape[-1] > 3:
         logging.info('More than one principal direction per voxel was given.')
@@ -102,7 +109,7 @@ def main():
 
     peaks = np.squeeze(peaks)
     if args.mask:
-        mask = get_data_as_mask(nib.load(args.mask), ref_shape=peaks.shape)
+        mask = get_data_as_mask(StatefulImage.load(args.mask), ref_shape=peaks.shape)
         fa[np.logical_not(mask)] = 0
         peaks[np.logical_not(mask)] = 0
 
@@ -112,16 +119,19 @@ def main():
     best_t = transform[np.argmax(coherence)]
     if (best_t == np.eye(3)).all():
         logging.info('b-vectors are already correct.')
-        correct_bvecs = bvecs
+        correct_bvecs_rasmm = sgrad.to_rasmm()
     else:
         logging.info('Applying correction to b-vectors. '
                      'Transform is: \n{0}.'.format(best_t))
-        correct_bvecs = np.dot(bvecs, best_t)
+        # Transform is applied to world-space vectors
+        correct_bvecs_rasmm = np.dot(sgrad.to_rasmm(), best_t)
 
     logging.info('Saving bvecs to file: {0}.'.format(args.out_bvec))
 
-    # FSL format (3, N)
-    np.savetxt(args.out_bvec, correct_bvecs.T, '%.8f')
+    # Save corrected bvecs using original affine of peaks_simg
+    final_sgrad = StatefulGradient(np.zeros(len(correct_bvecs_rasmm)), 
+                                   correct_bvecs_rasmm, peaks_simg, space='rasmm')
+    final_sgrad.save('/tmp/dummy.bval', args.out_bvec)
 
 
 if __name__ == "__main__":

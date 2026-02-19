@@ -19,13 +19,17 @@ are loaded at a time for processing.
 import argparse
 import logging
 
-from dipy.io import read_bvals_bvecs
 import nibabel as nib
 import numpy as np
 
 from scilpy.dwi.utils import extract_dwi_shell
-from scilpy.io.utils import (add_overwrite_arg, add_verbose_arg,
-                             assert_inputs_exist, assert_outputs_exist)
+from scilpy.io.gradients import read_bvals_bvecs
+from scilpy.io.stateful_image import StatefulImage
+from scilpy.io.stateful_gradient import StatefulGradient
+from scilpy.io.utils import (add_overwrite_arg, add_stateful_gradient_args,
+                             add_verbose_arg, assert_inputs_exist,
+                             assert_outputs_exist,
+                             get_stateful_gradient_from_args)
 from scilpy.version import version_string
 
 
@@ -36,10 +40,7 @@ def _build_arg_parser():
 
     p.add_argument('in_dwi',
                    help='The DW image file to split.')
-    p.add_argument('in_bval',
-                   help='The b-values file in FSL format (.bval).')
-    p.add_argument('in_bvec',
-                   help='The b-vectors file in FSL format (.bvec).')
+    add_stateful_gradient_args(p, mandatory=True)
     p.add_argument('in_bvals_to_extract', nargs='+', type=int,
                    help='The list of b-values to extract. For example 0 2000.')
     p.add_argument('out_dwi',
@@ -75,22 +76,22 @@ def main():
     assert_outputs_exist(parser, args, [args.out_dwi, args.out_bval,
                                         args.out_bvec], args.out_indices)
 
-    bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
-
     # Find the volume indices that correspond to the shells to extract.
-    img = nib.load(args.in_dwi)
+    img = StatefulImage.load(args.in_dwi)
+    sgrad = get_stateful_gradient_from_args(args, img)
 
-    indices, shell_data, new_bvals, new_bvecs = extract_dwi_shell(
-        img, bvals, bvecs, args.in_bvals_to_extract,
+    indices, shell_data, new_bvals, new_bvecs_rasmm = extract_dwi_shell(
+        img, sgrad.bvals, sgrad.bvecs, args.in_bvals_to_extract,
         args.tolerance, args.block_size)
 
     logging.info("Selected indices: {}".format(indices))
 
-    # toDo Could we use: scilpy.io.gradients.save_gradient_sampling_fsl?
-    np.savetxt(args.out_bval, new_bvals, '%d')
-    np.savetxt(args.out_bvec, new_bvecs.T, '%0.15f')
-    nib.save(nib.Nifti1Image(shell_data, img.affine, header=img.header),
-             args.out_dwi)
+    # Save results using Stateful objects to preserve original affine
+    final_sgrad = StatefulGradient(new_bvals, new_bvecs_rasmm, img, space='rasmm')
+    final_sgrad.save(args.out_bval, args.out_bvec)
+    
+    res_img = nib.Nifti1Image(shell_data, img.affine, header=img.header)
+    StatefulImage.create_from(res_img, img).save(args.out_dwi)
 
     # output indices file
     if args.out_indices:

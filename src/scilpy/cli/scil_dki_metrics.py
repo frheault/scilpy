@@ -55,7 +55,6 @@ import numpy as np
 import dipy.reconst.dki as dki
 import dipy.reconst.msdki as msdki
 
-from dipy.io.gradients import read_bvals_bvecs
 from dipy.core.gradients import gradient_table
 
 from scilpy.dwi.operations import compute_residuals
@@ -63,13 +62,13 @@ from scilpy.image.volume_operations import smooth_to_fwhm
 from scilpy.io.image import get_data_as_mask
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, add_skip_b0_check_arg,
+                             add_stateful_gradient_args,
                              add_verbose_arg, assert_inputs_exist,
                              assert_outputs_exist, add_tolerance_arg,
-                             assert_headers_compatible)
+                             assert_headers_compatible,
+                             get_stateful_gradient_from_args)
 from scilpy.gradients.bvec_bval_tools import (check_b0_threshold,
-                                              is_normalized_bvecs,
-                                              identify_shells,
-                                              normalize_bvecs)
+                                              identify_shells)
 from scilpy.version import version_string
 
 
@@ -80,10 +79,7 @@ def _build_arg_parser():
 
     p.add_argument('in_dwi',
                    help='Path of the input multi-shell DWI dataset.')
-    p.add_argument('in_bval',
-                   help='Path of the b-value file, in FSL format.')
-    p.add_argument('in_bvec',
-                   help='Path of the b-vector file, in FSL format.')
+    add_stateful_gradient_args(p, mandatory=True)
 
     p.add_argument('--mask',
                    help='Path to a binary mask.\n'
@@ -191,10 +187,7 @@ def main():
     mask = get_data_as_mask(StatefulImage.load(args.mask),
                             dtype=bool) if args.mask else None
 
-    bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
-    if not is_normalized_bvecs(bvecs):
-        logging.warning('Your b-vectors do not seem normalized...')
-        bvecs = normalize_bvecs(bvecs)
+    sgrad = get_stateful_gradient_from_args(args, img)
 
     # Note. This script does not currently allow using a separate b0_threshold
     # for the b0s. Using the tolerance. To change this, we would have to
@@ -204,15 +197,15 @@ def main():
     #  https://github.com/dipy/dipy/issues/3015
     # b0_threshold option in gradient_table probably unused, except below with
     # option dki_residual.
-    _ = check_b0_threshold(bvals.min(), b0_thr=args.tolerance,
+    _ = check_b0_threshold(sgrad.bvals.min(), b0_thr=args.tolerance,
                            skip_b0_check=args.skip_b0_check,
                            overwrite_with_min=False)
-    gtab = gradient_table(bvals, bvecs=bvecs, b0_threshold=args.tolerance)
+    gtab = gradient_table(sgrad.bvals, bvecs=sgrad.bvecs, b0_threshold=args.tolerance)
 
     # Processing
 
     # Find the volume indices that correspond to the shells to extract.
-    shells, _ = identify_shells(bvals, args.tolerance)
+    shells, _ = identify_shells(sgrad.bvals, args.tolerance)
     if not len(shells) >= 3:
         parser.error('Data is not multi-shell. You need at least 2 non-zero'
                      ' b-values')

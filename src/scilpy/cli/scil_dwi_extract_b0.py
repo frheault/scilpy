@@ -12,15 +12,16 @@ import logging
 import os
 
 from dipy.core.gradients import gradient_table
-from dipy.io.gradients import read_bvals_bvecs
 
 import nibabel as nib
 import numpy as np
 
 from scilpy.dwi.utils import extract_b0
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_b0_thresh_arg, add_overwrite_arg,
-                             add_skip_b0_check_arg, add_verbose_arg,
-                             assert_inputs_exist)
+                             add_skip_b0_check_arg, add_stateful_gradient_args,
+                             add_verbose_arg, assert_inputs_exist,
+                             get_stateful_gradient_from_args)
 from scilpy.gradients.bvec_bval_tools import (check_b0_threshold,
                                               B0ExtractionStrategy)
 from scilpy.utils.filenames import split_name_with_nii
@@ -35,10 +36,7 @@ def _build_arg_parser():
                                 epilog=version_string)
     p.add_argument('in_dwi',
                    help='DWI Nifti image.')
-    p.add_argument('in_bval',
-                   help='b-values filename, in FSL format (.bval).')
-    p.add_argument('in_bvec',
-                   help='b-values filename, in FSL format (.bvec).')
+    add_stateful_gradient_args(p, mandatory=True)
     p.add_argument('out_b0',
                    help='Output b0 file(s).')
 
@@ -72,7 +70,7 @@ def _build_arg_parser():
     return p
 
 
-def _split_time_steps(b0, affine, header, output):
+def _split_time_steps(b0, vol, output):
     fname, fext = split_name_with_nii(os.path.basename(output))
 
     multiple_b0 = b0.shape[-1] > 1
@@ -80,7 +78,8 @@ def _split_time_steps(b0, affine, header, output):
         out_name = os.path.join(
             os.path.dirname(os.path.abspath(output)),
             '{}_{}{}'.format(fname, t, fext)) if multiple_b0 else output
-        nib.save(nib.Nifti1Image(b0[..., t], affine, header), out_name)
+        res_img = nib.Nifti1Image(b0[..., t], vol.affine, vol.header)
+        StatefulImage.create_from(res_img, vol).save(out_name)
 
 
 def main():
@@ -93,12 +92,13 @@ def main():
     # Outputs are not checked, since multiple use cases
     # are possible and hard to check
 
-    bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
+    vol = StatefulImage.load(args.in_dwi)
+    sgrad = get_stateful_gradient_from_args(args, vol)
 
-    args.b0_threshold = check_b0_threshold(bvals.min(),
+    args.b0_threshold = check_b0_threshold(sgrad.bvals.min(),
                                            b0_thr=args.b0_threshold,
                                            skip_b0_check=args.skip_b0_check)
-    gtab = gradient_table(bvals, bvecs=bvecs, b0_threshold=args.b0_threshold)
+    gtab = gradient_table(sgrad.bvals, bvecs=sgrad.bvecs, b0_threshold=args.b0_threshold)
     b0_idx = np.where(gtab.b0s_mask)[0]
 
     logger.info('Number of b0 images in the data: {}'.format(len(b0_idx)))
@@ -112,16 +112,14 @@ def main():
     elif args.cluster_first:
         extract_in_cluster = True
 
-    image = nib.load(args.in_dwi)
-
     b0_volumes = extract_b0(
-        image, gtab.b0s_mask, extract_in_cluster, strategy, args.block_size)
+        vol, gtab.b0s_mask, extract_in_cluster, strategy, args.block_size)
 
     if len(b0_volumes.shape) > 3 and not args.single_image:
-        _split_time_steps(b0_volumes, image.affine, image.header, args.out_b0)
+        _split_time_steps(b0_volumes, vol, args.out_b0)
     else:
-        nib.save(nib.Nifti1Image(b0_volumes, image.affine, image.header),
-                 args.out_b0)
+        res_img = nib.Nifti1Image(b0_volumes, vol.affine, vol.header)
+        StatefulImage.create_from(res_img, vol).save(args.out_b0)
 
 
 if __name__ == '__main__':

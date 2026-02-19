@@ -12,15 +12,18 @@ import logging
 from packaging import version
 import sys
 
-from dipy.io.gradients import read_bvals_bvecs
 import nibabel as nib
 import numpy as np
 
 from scilpy.gradients.utils import get_new_gtab_order
+from scilpy.io.stateful_image import StatefulImage
+from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg,
+                             add_stateful_gradient_args,
                              add_verbose_arg,
                              assert_inputs_exist,
-                             assert_outputs_exist)
+                             assert_outputs_exist,
+                             get_stateful_gradient_from_args)
 from scilpy.utils.filenames import split_name_with_nii
 from scilpy.version import version_string
 
@@ -34,10 +37,7 @@ def _build_arg_parser():
 
     p.add_argument('in_dwi',
                    help='Input dwi file.')
-    p.add_argument('in_bval',
-                   help='Input bval FSL format.')
-    p.add_argument('in_bvec',
-                   help='Input bvec FSL format.')
+    add_stateful_gradient_args(p, mandatory=True)
     p.add_argument('in_table',
                    help='Original philips table - first line is skipped.')
     p.add_argument('out_basename',
@@ -85,24 +85,30 @@ def main():
                          'Use -f to force overwriting.')
 
     philips_table = np.loadtxt(args.in_table, skiprows=1)
-    bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
-    dwi = nib.load(args.in_dwi)
+    dwi = StatefulImage.load(args.in_dwi)
+    sgrad = get_stateful_gradient_from_args(args, dwi)
 
-    new_index = get_new_gtab_order(philips_table, dwi, bvals, bvecs)
-    bvecs = bvecs[new_index]
-    bvals = bvals[new_index]
+    new_index = get_new_gtab_order(philips_table, dwi, sgrad.bvals, sgrad.bvecs)
+    new_bvecs_rasmm = sgrad.to_rasmm()[new_index]
+    new_bvals = sgrad.bvals[new_index]
 
-    data = dwi.dataobj.get_unscaled()
+    data = dwi.get_fdata()
     data = data[:, :, :, new_index]
 
-    tmp = nib.Nifti1Image(data, dwi.affine, header=dwi.header)
-    tmp.header['scl_slope'] = dwi.dataobj.slope
-    tmp.header['scl_inter'] = dwi.dataobj.inter
-    tmp.update_header()
+    # Reorder unscaled data logic from original: 
+    # Actually StatefulImage doesn't explicitly expose unscaled easily yet, 
+    # but we can use .dataobj if we want to be exact.
+    # But since we want to preserve header anyway, let's use the StatefulImage 
+    # to create from.
+    
+    new_img = nib.Nifti1Image(data, dwi.affine, header=dwi.header)
+    # Re-wrap to StatefulImage to save with original strides
+    out_simg = StatefulImage.create_from(new_img, dwi)
+    out_simg.save(output_filenames[0])
 
-    nib.save(tmp, output_filenames[0])
-    np.savetxt(args.out_basename + '.bval', bvals.reshape(1, len(bvals)), '%d')
-    np.savetxt(args.out_basename + '.bvec', bvecs.T, '%0.15f')
+    # Save reordered gradients
+    final_sgrad = StatefulGradient(new_bvals, new_bvecs_rasmm, dwi, space='rasmm')
+    final_sgrad.save(args.out_basename + '.bval', args.out_basename + '.bvec')
 
 
 if __name__ == '__main__':

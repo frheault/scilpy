@@ -31,15 +31,18 @@ import argparse
 import logging
 import os
 
-from dipy.io.gradients import read_bvals_bvecs
 import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
 import pandas as pd
 
+from scilpy.io.gradients import read_bvals_bvecs
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_json_args, add_overwrite_arg,
+                             add_stateful_gradient_args,
                              add_verbose_arg,
-                             assert_inputs_exist)
+                             assert_inputs_exist,
+                             get_stateful_gradient_from_args)
 from scilpy.utils.filenames import split_name_with_nii
 from scilpy.image.volume_operations import compute_snr
 from scilpy.version import version_string
@@ -53,11 +56,7 @@ def _build_arg_parser():
     p.add_argument('in_dwi',
                    help='Path of the input diffusion volume.')
 
-    p.add_argument('in_bval',
-                   help='Path of the bvals file, in FSL format.')
-
-    p.add_argument('in_bvec',
-                   help='Path of the bvecs file, in FSL format.')
+    add_stateful_gradient_args(p, mandatory=True)
 
     p.add_argument('in_mask',
                    help='Binary mask of the region used to estimate SNR.')
@@ -108,19 +107,19 @@ def main():
     logging.info('Basename: {}'.format(basename))
 
     # Loadings inputs.
-    dwi = nib.load(args.in_dwi)
-    bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
-    mask = nib.load(args.in_mask)
+    dwi = StatefulImage.load(args.in_dwi)
+    sgrad = get_stateful_gradient_from_args(args, dwi)
+    mask = StatefulImage.load(args.in_mask)
 
     if args.noise_mask:
-        noise_mask = nib.load(args.noise_mask)
+        noise_mask = StatefulImage.load(args.noise_mask)
         noise_map = None
     else:
-        noise_map = nib.load(args.noise_map)
+        noise_map = StatefulImage.load(args.noise_map) if args.noise_map else None
         noise_mask = None
 
     automatic_mask_discovery = noise_mask is None and noise_map is None
-    values, noise_mask = compute_snr(dwi, bvals, bvecs, args.b0_thr,
+    values, noise_mask = compute_snr(dwi, sgrad.bvals, sgrad.bvecs, args.b0_thr,
                                      mask, noise_mask=noise_mask,
                                      noise_map=noise_map,
                                      split_shells=args.split_shells)
@@ -128,7 +127,8 @@ def main():
     if automatic_mask_discovery:
         filename = basename + '_noise_mask.nii.gz'
         logging.info("Saving computed noise mask as {}".format(filename))
-        nib.save(nib.Nifti1Image(noise_mask, dwi.affine), filename)
+        res_img = nib.Nifti1Image(noise_mask, dwi.affine)
+        StatefulImage.create_from(res_img, dwi).save(filename)
 
     df = pd.DataFrame.from_dict(values).T
 

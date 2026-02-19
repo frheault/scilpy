@@ -26,18 +26,21 @@ import argparse
 import logging
 
 from dipy.core.gradients import unique_bvals_tolerance
-from dipy.io.gradients import read_bvals_bvecs
 import nibabel as nib
 import numpy as np
 
 from scilpy.dwi.utils import extract_dwi_shell
 from scilpy.gradients.bvec_bval_tools import check_b0_threshold
+from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
+from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg, add_precision_arg,
-                             add_skip_b0_check_arg,
+                             add_skip_b0_check_arg, add_stateful_gradient_args,
                              add_verbose_arg, assert_inputs_exist,
                              assert_outputs_exist, assert_roi_radii_format,
-                             assert_headers_compatible)
+                             assert_headers_compatible,
+                             get_stateful_gradient_from_args)
 from scilpy.reconst.frf import compute_msmt_frf
 from scilpy.version import version_string
 
@@ -49,10 +52,7 @@ def _build_arg_parser():
 
     p.add_argument('in_dwi',
                    help='Path to the input diffusion volume.')
-    p.add_argument('in_bval',
-                   help='Path to the bval file, in FSL format.')
-    p.add_argument('in_bvec',
-                   help='Path to the bvec file, in FSL format.')
+    add_stateful_gradient_args(p, mandatory=True)
     p.add_argument('out_wm_frf',
                    help='Path to the output WM frf file, in .txt format.')
     p.add_argument('out_gm_frf',
@@ -157,43 +157,43 @@ def main():
     roi_radii = assert_roi_radii_format(parser)
 
     # Loading
-    vol = nib.load(args.in_dwi)
+    vol = StatefulImage.load(args.in_dwi)
     data = vol.get_fdata(dtype=np.float32)
-    bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
+    sgrad = get_stateful_gradient_from_args(args, vol)
 
     dti_lim = args.dti_bval_limit
 
     # Note. This script does not currently allow using a separate b0_threshold
-    # for the b0s. Using the tolerance. To fix this, we would need to change
-    # the unique_bvals_tolerance and extract_dwi_shell methods.
-    _ = check_b0_threshold(bvals.min(), b0_thr=args.tolerance,
+    # for the b0s. Using the tolerance. To fix this, we would have to
+    # change the unique_bvals_tolerance and extract_dwi_shell methods.
+    _ = check_b0_threshold(sgrad.bvals.min(), b0_thr=args.tolerance,
                            skip_b0_check=args.skip_b0_check,
                            overwrite_with_min=False)
-    list_bvals = unique_bvals_tolerance(bvals, tol=args.tolerance)
+    list_bvals = unique_bvals_tolerance(sgrad.bvals, tol=args.tolerance)
     if not np.all(list_bvals <= dti_lim):
-        _, data_dti, bvals_dti, bvecs_dti = extract_dwi_shell(
-            vol, bvals, bvecs, list_bvals[list_bvals <= dti_lim],
+        _, data_dti, bvals_dti, bvecs_dti_rasmm = extract_dwi_shell(
+            vol, sgrad.bvals, sgrad.bvecs, list_bvals[list_bvals <= dti_lim],
             tol=args.tolerance)
         bvals_dti = np.squeeze(bvals_dti)
     else:
         data_dti = None
         bvals_dti = None
-        bvecs_dti = None
+        bvecs_dti_rasmm = None
 
-    mask = get_data_as_mask(nib.load(args.mask),
+    mask = get_data_as_mask(StatefulImage.load(args.mask),
                             dtype=bool) if args.mask else None
-    mask_wm = get_data_as_mask(nib.load(args.mask_wm),
+    mask_wm = get_data_as_mask(StatefulImage.load(args.mask_wm),
                                dtype=bool) if args.mask_wm else None
-    mask_gm = get_data_as_mask(nib.load(args.mask_gm),
+    mask_gm = get_data_as_mask(StatefulImage.load(args.mask_gm),
                                dtype=bool) if args.mask_gm else None
-    mask_csf = get_data_as_mask(nib.load(args.mask_csf),
+    mask_csf = get_data_as_mask(StatefulImage.load(args.mask_csf),
                                 dtype=bool) if args.mask_csf else None
 
     # Processing
-    responses, frf_masks = compute_msmt_frf(data, bvals, bvecs,
+    responses, frf_masks = compute_msmt_frf(data, sgrad.bvals, sgrad.bvecs,
                                             data_dti=data_dti,
                                             bvals_dti=bvals_dti,
-                                            bvecs_dti=bvecs_dti,
+                                            bvecs_dti=bvecs_dti_rasmm,
                                             mask=mask, mask_wm=mask_wm,
                                             mask_gm=mask_gm, mask_csf=mask_csf,
                                             fa_thr_wm=args.fa_thr_wm,
@@ -208,10 +208,10 @@ def main():
 
     # Saving
     masks_files = [args.wm_frf_mask, args.gm_frf_mask, args.csf_frf_mask]
-    for mask, mask_file in zip(frf_masks, masks_files):
+    for m, mask_file in zip(frf_masks, masks_files):
         if mask_file:
-            nib.save(nib.Nifti1Image(mask.astype(np.uint8), vol.affine),
-                     mask_file)
+            res_img = nib.Nifti1Image(m.astype(np.uint8), vol.affine)
+            StatefulImage.create_from(res_img, vol).save(mask_file)
 
     frf_out = [args.out_wm_frf, args.out_gm_frf, args.out_csf_frf]
 

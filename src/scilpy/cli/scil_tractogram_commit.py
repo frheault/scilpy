@@ -94,25 +94,26 @@ import commit
 from commit import trk2dictionary
 
 from dipy.io.streamline import save_tractogram, load_tractogram
-from dipy.io.gradients import read_bvals_bvecs
 from dipy.tracking.streamlinespeed import length
 import h5py
 import numpy as np
 import nibabel as nib
 
-from scilpy.io.gradients import fsl2mrtrix
+from scilpy.io.gradients import fsl2mrtrix, read_bvals_bvecs
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.hdf5 import (reconstruct_sft_from_hdf5,
                             construct_hdf5_group_from_streamlines,
                             construct_hdf5_header)
 from scilpy.io.streamlines import reconstruct_streamlines
 from scilpy.io.utils import (add_overwrite_arg,
                              add_processes_arg,
+                             add_stateful_gradient_args,
                              add_verbose_arg,
                              assert_inputs_exist,
                              assert_output_dirs_exist_and_empty,
                              redirect_stdout_c, add_tolerance_arg,
                              add_skip_b0_check_arg, assert_headers_compatible,
-                             add_reference_arg)
+                             add_reference_arg, get_stateful_gradient_from_args)
 from scilpy.gradients.bvec_bval_tools import identify_shells, \
     check_b0_threshold
 from scilpy.version import version_string
@@ -127,10 +128,7 @@ def _build_arg_parser():
                    help='Input tractogram (.trk or .tck or .h5).')
     p.add_argument('in_dwi',
                    help='Diffusion-weighted image used by COMMIT (.nii.gz).')
-    p.add_argument('in_bval',
-                   help='b-values in the FSL format (.bval).')
-    p.add_argument('in_bvec',
-                   help='b-vectors in the FSL format (.bvec).')
+    add_stateful_gradient_args(p, mandatory=True)
     p.add_argument('out_dir',
                    help='Output directory for the COMMIT maps.')
 
@@ -391,13 +389,13 @@ def main():
     # Prepare tmp dir for all our intermediate files
     tmp_dir = tempfile.TemporaryDirectory()
     # === Loading ===
-    dwi_img = nib.load(args.in_dwi)
+    dwi_img = StatefulImage.load(args.in_dwi)
+    sgrad = get_stateful_gradient_from_args(args, dwi_img)
 
     # Load bvals
-    bvals, _ = read_bvals_bvecs(args.in_bval, args.in_bvec)
-    _ = check_b0_threshold(bvals.min(), b0_thr=args.tolerance,
+    _ = check_b0_threshold(sgrad.bvals.min(), b0_thr=args.tolerance,
                            skip_b0_check=args.skip_b0_check)
-    shells_centroids, indices_shells = identify_shells(bvals, args.tolerance,
+    shells_centroids, indices_shells = identify_shells(sgrad.bvals, args.tolerance,
                                                        round_centroids=True)
     if len(shells_centroids) == 2 and not args.ball_stick:
         parser.error('The DWI data appears to be single-shell.\n'
@@ -416,7 +414,7 @@ def main():
     tmp_bval_filename = os.path.join(tmp_dir.name, 'bval')
     np.savetxt(tmp_bval_filename, shells_centroids[indices_shells],
                newline=' ', fmt='%i')
-    fsl2mrtrix(tmp_bval_filename, args.in_bvec, tmp_scheme_filename)
+    fsl2mrtrix(tmp_bval_filename, args.in_bvec, tmp_scheme_filename, simg=dwi_img)
 
     # === Main processing ===
 

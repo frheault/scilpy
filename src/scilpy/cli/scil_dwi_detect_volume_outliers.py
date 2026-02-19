@@ -16,15 +16,13 @@ before launching pre-processing.
 import argparse
 import logging
 
-from dipy.io.gradients import read_bvals_bvecs
-import nibabel as nib
-
-
 from scilpy.dwi.operations import detect_volume_outliers
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_b0_thresh_arg, add_skip_b0_check_arg,
-                             add_verbose_arg, assert_inputs_exist, )
-from scilpy.gradients.bvec_bval_tools import (check_b0_threshold,
-                                              normalize_bvecs)
+                             add_stateful_gradient_args,
+                             add_verbose_arg, assert_inputs_exist,
+                             get_stateful_gradient_from_args)
+from scilpy.gradients.bvec_bval_tools import check_b0_threshold
 from scilpy.version import version_string
 
 
@@ -35,10 +33,7 @@ def _build_arg_parser():
 
     p.add_argument('in_dwi',
                    help='The DWI file (.nii) to concatenate.')
-    p.add_argument('in_bval',
-                   help='The b-values files in FSL format (.bval).')
-    p.add_argument('in_bvec',
-                   help='The b-vectors files in FSL format (.bvec).')
+    add_stateful_gradient_args(p, mandatory=True)
 
     p.add_argument('--std_scale', type=float, default=2.0,
                    help='How many deviation from the mean are required to be '
@@ -61,17 +56,17 @@ def main():
 
     assert_inputs_exist(parser, [args.in_dwi, args.in_bval, args.in_bvec])
 
-    bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
-    data = nib.load(args.in_dwi).get_fdata()
+    vol = StatefulImage.load(args.in_dwi)
+    data = vol.get_fdata()
+    sgrad = get_stateful_gradient_from_args(args, vol)
 
-    args.b0_threshold = check_b0_threshold(bvals.min(),
+    args.b0_threshold = check_b0_threshold(sgrad.bvals.min(),
                                            b0_thr=args.b0_threshold,
                                            skip_b0_check=args.skip_b0_check)
-    bvecs = normalize_bvecs(bvecs)
 
     # Not using the result. Only printing on screen. This is why the logging
     # level can never be set higher than INFO.
-    detect_volume_outliers(data, bvals, bvecs, args.std_scale,
+    detect_volume_outliers(data, sgrad.bvals, sgrad.bvecs, args.std_scale,
                            args.b0_threshold)
 
 

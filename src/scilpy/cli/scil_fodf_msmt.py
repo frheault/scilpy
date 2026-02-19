@@ -22,7 +22,6 @@ import logging
 
 from dipy.core.gradients import gradient_table, unique_bvals_tolerance
 from dipy.data import get_sphere
-from dipy.io.gradients import read_bvals_bvecs
 from dipy.reconst.mcsd import MultiShellDeconvModel, multi_shell_fiber_response
 import nibabel as nib
 import numpy as np
@@ -35,8 +34,10 @@ from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
                              assert_inputs_exist, assert_outputs_exist,
                              add_sh_basis_args, add_skip_b0_check_arg,
+                             add_stateful_gradient_args,
                              add_verbose_arg, add_tolerance_arg,
-                             parse_sh_basis_arg, assert_headers_compatible)
+                             parse_sh_basis_arg, assert_headers_compatible,
+                             get_stateful_gradient_from_args)
 from scilpy.reconst.fodf import (fit_from_model,
                                  verify_failed_voxels_shm_coeff,
                                  verify_frf_files)
@@ -51,10 +52,7 @@ def _build_arg_parser():
 
     p.add_argument('in_dwi',
                    help='Path of the input diffusion volume.')
-    p.add_argument('in_bval',
-                   help='Path of the bval file, in FSL format.')
-    p.add_argument('in_bvec',
-                   help='Path of the bvec file, in FSL format.')
+    add_stateful_gradient_args(p, mandatory=True)
     p.add_argument('in_wm_frf',
                    help='Text file of WM response function.')
     p.add_argument('in_gm_frf',
@@ -135,7 +133,7 @@ def main():
     csf_frf = np.loadtxt(args.in_csf_frf)
     vol = StatefulImage.load(args.in_dwi)
     data = vol.get_fdata(dtype=np.float32)
-    bvals, bvecs = read_bvals_bvecs(args.in_bval, args.in_bvec)
+    sgrad = get_stateful_gradient_from_args(args, vol)
 
     # Checking data and sh_order
     wm_frf, gm_frf, csf_frf = verify_frf_files(wm_frf, gm_frf, csf_frf)
@@ -146,21 +144,16 @@ def main():
     mask = get_data_as_mask(StatefulImage.load(args.mask),
                             dtype=bool) if args.mask else None
 
-    # Checking bvals, bvecs values and loading gtab
-    if not is_normalized_bvecs(bvecs):
-        logging.warning('Your b-vectors do not seem normalized...')
-        bvecs = normalize_bvecs(bvecs)
-
     # Note. This script does not currently allow using a separate b0_threshold
     # for the b0s. Using the tolerance. To change this, we would have to
     # change many things in dipy. An issue has been added in dipy to
     # ask them to clarify the usage of gtab.b0s_mask. See here:
     #  https://github.com/dipy/dipy/issues/3015
     # b0_threshold option in gradient_table probably unused.
-    _ = check_b0_threshold(bvals.min(), b0_thr=args.tolerance,
+    _ = check_b0_threshold(sgrad.bvals.min(), b0_thr=args.tolerance,
                            skip_b0_check=args.skip_b0_check,
                            overwrite_with_min=False)
-    gtab = gradient_table(bvals, bvecs=bvecs, b0_threshold=args.tolerance)
+    gtab = gradient_table(sgrad.bvals, bvecs=sgrad.bvecs, b0_threshold=args.tolerance)
 
     # Loading spheres
     reg_sphere = get_sphere(name='symmetric362')
@@ -169,7 +162,7 @@ def main():
     # Starting main process!
 
     # Checking response functions and computing msmt response function
-    ubvals = unique_bvals_tolerance(bvals, tol=args.tolerance)
+    ubvals = unique_bvals_tolerance(sgrad.bvals, tol=args.tolerance)
     logging.info("Computing multi-shell fiber response...")
     msmt_response = multi_shell_fiber_response(args.sh_order, ubvals,
                                                wm_frf, gm_frf, csf_frf,

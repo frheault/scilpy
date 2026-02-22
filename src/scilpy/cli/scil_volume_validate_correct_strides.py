@@ -145,20 +145,20 @@ def main():
             best_t = transform[np.argmax(coherence)]
             if (best_t == np.eye(3)).all():
                 logging.info('The b-vectors are aligned with the original data.')
-                final_bvecs_rasmm = sgrad.to_rasmm()
+                final_bvecs_ras = sgrad.to_ras()
             else:
                 logging.warning('Applying correction to b-vectors.')
                 logging.info('Transform is: \n{0}.'.format(best_t))
                 # Apply correction in World space
-                final_bvecs_rasmm = np.dot(sgrad.to_rasmm(), best_t)
+                final_bvecs_ras = np.dot(sgrad.to_ras(), best_t)
         else:
-            final_bvecs_rasmm = sgrad.to_rasmm()
+            final_bvecs_ras = sgrad.to_ras()
 
         # Save corrected/permuted bvecs
         # Since we changed simg._original_affine to RAS,
         # saving through StatefulGradient will export them in RAS.
-        final_sgrad = StatefulGradient(sgrad.bvals, final_bvecs_rasmm,
-                                       simg, space='rasmm')
+        final_sgrad = StatefulGradient(sgrad.bvals, final_bvecs_ras,
+                                       simg, space='ras')
         # We only need to save the bvecs here as requested by --out_bvec
         final_sgrad.save('/tmp/dummy.bval', args.out_bvec)
 

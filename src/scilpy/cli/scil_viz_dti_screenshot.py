@@ -95,16 +95,16 @@ def prepare_data_for_actors(dwi_filename, bvals_filename, bvecs_filename,
                 'There are no volumes that have the supplied b-values.')
         shell_data = np.zeros((dwi_data.shape[:-1] + (len(indices),)),
                               dtype=dwi_data.dtype)
-        shell_bvecs_rasmm = np.zeros((len(indices), 3))
+        shell_bvecs_ras = np.zeros((len(indices), 3))
         shell_bvals = np.zeros((len(indices),))
         for i, index in enumerate(indices):
             shell_data[..., i] = dwi_data[..., index]
             shell_bvals[i] = sgrad.bvals[index]
-            shell_bvecs_rasmm[i, :] = sgrad.bvecs[index, :]
+            shell_bvecs_ras[i, :] = sgrad.bvecs[index, :]
     else:
         shell_data = dwi_data
         shell_bvals = sgrad.bvals
-        shell_bvecs_rasmm = sgrad.bvecs
+        shell_bvecs_ras = sgrad.bvecs
 
     # Register the DWI data to the template
     transformed_dwi, transformation = register_image(
@@ -113,15 +113,15 @@ def prepare_data_for_actors(dwi_filename, bvals_filename, bvecs_filename,
         dwi=shell_data)
 
     # Rotate gradients (RASmm vectors rotated by rigid transform)
-    rotated_bvecs_rasmm = np.dot(shell_bvecs_rasmm, transformation[0:3, 0:3])
+    rotated_bvecs_ras = np.dot(shell_bvecs_ras, transformation[0:3, 0:3])
 
     # No need to manually normalize if StatefulGradient already does it,
     # but transformation might affect it slightly.
-    norms = np.linalg.norm(rotated_bvecs_rasmm, axis=1)
+    norms = np.linalg.norm(rotated_bvecs_ras, axis=1)
     idx = norms > 0
-    rotated_bvecs_rasmm[idx] /= norms[idx, None]
+    rotated_bvecs_ras[idx] /= norms[idx, None]
 
-    rotated_gtab = gradient_table(shell_bvals, bvecs=rotated_bvecs_rasmm,
+    rotated_gtab = gradient_table(shell_bvals, bvecs=rotated_bvecs_ras,
                                   b0_threshold=10)
 
     # Get tensors

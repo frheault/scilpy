@@ -79,14 +79,14 @@ def main():
     img = StatefulImage.load(args.in_dwi)
     sgrad = get_stateful_gradient_from_args(args, img)
 
-    indices, shell_data, new_bvals, new_bvecs_rasmm = extract_dwi_shell(
+    indices, shell_data, new_bvals, new_bvecs_ras = extract_dwi_shell(
         img, sgrad.bvals, sgrad.bvecs, args.in_bvals_to_extract,
         args.tolerance, args.block_size)
 
     logging.info("Selected indices: {}".format(indices))
 
     # Save results using Stateful objects to preserve original affine
-    final_sgrad = StatefulGradient(new_bvals, new_bvecs_rasmm, img, space='rasmm')
+    final_sgrad = StatefulGradient(new_bvals, new_bvecs_ras, img, space='ras')
     final_sgrad.save(args.out_bval, args.out_bvec)
 
     res_img = nib.Nifti1Image(shell_data, img.affine, header=img.header)

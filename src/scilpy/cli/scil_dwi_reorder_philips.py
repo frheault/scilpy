@@ -89,7 +89,7 @@ def main():
     sgrad = get_stateful_gradient_from_args(args, dwi)
 
     new_index = get_new_gtab_order(philips_table, dwi, sgrad.bvals, sgrad.bvecs)
-    new_bvecs_rasmm = sgrad.to_rasmm()[new_index]
+    new_bvecs_ras = sgrad.to_ras()[new_index]
     new_bvals = sgrad.bvals[new_index]
 
     data = dwi.get_fdata()
@@ -107,7 +107,7 @@ def main():
     out_simg.save(output_filenames[0])
 
     # Save reordered gradients
-    final_sgrad = StatefulGradient(new_bvals, new_bvecs_rasmm, dwi, space='rasmm')
+    final_sgrad = StatefulGradient(new_bvals, new_bvecs_ras, dwi, space='ras')
     final_sgrad.save(args.out_basename + '.bval', args.out_basename + '.bvec')
 
 

@@ -91,13 +91,13 @@ def main():
     for i in range(len(indices) - 1):
         data_split = img.get_fdata()[..., indices[i]:indices[i + 1]]
         bvals_split = sgrad.bvals[indices[i]:indices[i + 1]]
-        bvecs_rasmm_split = sgrad.to_rasmm()[indices[i]:indices[i + 1]]
+        bvecs_ras_split = sgrad.to_ras()[indices[i]:indices[i + 1]]
 
         # Saving the output files
         new_img = nib.Nifti1Image(data_split, img.affine, header=img.header)
         StatefulImage.create_from(new_img, img).save(out_names[i] + ".nii.gz")
 
-        split_sgrad = StatefulGradient(bvals_split, bvecs_rasmm_split, img, space='rasmm')
+        split_sgrad = StatefulGradient(bvals_split, bvecs_ras_split, img, space='ras')
         split_sgrad.save(out_names[i] + ".bval", out_names[i] + ".bvec")
 
 

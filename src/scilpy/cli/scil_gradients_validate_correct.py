@@ -118,18 +118,18 @@ def main():
     best_t = transform[np.argmax(coherence)]
     if (best_t == np.eye(3)).all():
         logging.info('b-vectors are already correct.')
-        correct_bvecs_rasmm = sgrad.to_rasmm()
+        correct_bvecs_ras = sgrad.to_ras()
     else:
         logging.info('Applying correction to b-vectors. '
                      'Transform is: \n{0}.'.format(best_t))
         # Transform is applied to world-space vectors
-        correct_bvecs_rasmm = np.dot(sgrad.to_rasmm(), best_t)
+        correct_bvecs_ras = np.dot(sgrad.to_ras(), best_t)
 
     logging.info('Saving bvecs to file: {0}.'.format(args.out_bvec))
 
     # Save corrected bvecs using original affine of peaks_simg
-    final_sgrad = StatefulGradient(np.zeros(len(correct_bvecs_rasmm)),
-                                   correct_bvecs_rasmm, peaks_simg, space='rasmm')
+    final_sgrad = StatefulGradient(np.zeros(len(correct_bvecs_ras)),
+                                   correct_bvecs_ras, peaks_simg, space='ras')
     final_sgrad.save('/tmp/dummy.bval', args.out_bvec)
 
 

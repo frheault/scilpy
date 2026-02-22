@@ -66,7 +66,7 @@ def main():
                                         args.out_bvec])
 
     all_bvals = []
-    all_bvecs_rasmm = []
+    all_bvecs_ras = []
     total_size = 0
     ref_dwi = StatefulImage.load(args.in_dwis[0])
 
@@ -74,7 +74,7 @@ def main():
     sgrad = read_bvals_bvecs(args.in_bvals[0], args.in_bvecs[0], simg=ref_dwi)
     total_size += len(sgrad.bvals)
     all_bvals.append(sgrad.bvals)
-    all_bvecs_rasmm.append(sgrad.to_rasmm())
+    all_bvecs_ras.append(sgrad.to_ras())
 
     all_dwi = np.zeros(ref_dwi.shape[0:3] + (0,), dtype=args.data_type)
     # We will build all_dwi list and concatenate at once for better efficiency
@@ -95,10 +95,10 @@ def main():
 
         total_size += len(curr_sgrad.bvals)
         all_bvals.append(curr_sgrad.bvals)
-        all_bvecs_rasmm.append(curr_sgrad.to_rasmm())
+        all_bvecs_ras.append(curr_sgrad.to_ras())
 
     all_bvals = np.concatenate(all_bvals)
-    all_bvecs_rasmm = np.concatenate(all_bvecs_rasmm)
+    all_bvecs_ras = np.concatenate(all_bvecs_ras)
 
     all_dwi = np.zeros(ref_dwi.shape[0:3] + (total_size,),
                        dtype=args.data_type or ref_dwi.get_data_dtype())
@@ -112,7 +112,7 @@ def main():
 
     # Save results
     # Create final StatefulGradient to save correctly
-    final_sgrad = StatefulGradient(all_bvals, all_bvecs_rasmm, ref_dwi, space='rasmm')
+    final_sgrad = StatefulGradient(all_bvals, all_bvecs_ras, ref_dwi, space='ras')
     final_sgrad.save(args.out_bval, args.out_bvec)
 
     res_img = nib.Nifti1Image(all_dwi, ref_dwi.affine, header=ref_dwi.header)

@@ -215,7 +215,7 @@ def main():
         # Create a temporary StatefulGradient to save in FSL format
         # relative to the original image orientation.
         out_sgrad = StatefulGradient(np.zeros(len(new_bvecs)),
-                                     new_bvecs, vol_sh, space='rasmm')
+                                     new_bvecs, vol_sh, space='ras')
         out_sgrad.save('/tmp/dummy.bval', args.out_bvec)
 
     # Save SF

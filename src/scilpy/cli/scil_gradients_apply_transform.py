@@ -69,11 +69,11 @@ def main():
     sgrad = read_bvals_bvecs(None, args.in_bvecs, simg=ref_simg)
 
     # Apply transform to world-space vectors
-    new_bvecs_rasmm = sgrad.to_rasmm() @ transfo
+    new_bvecs_ras = sgrad.to_ras() @ transfo
 
     # Save transformed bvecs using original affine of reference
-    final_sgrad = StatefulGradient(np.zeros(len(new_bvecs_rasmm)),
-                                   new_bvecs_rasmm, ref_simg, space='rasmm')
+    final_sgrad = StatefulGradient(np.zeros(len(new_bvecs_ras)),
+                                   new_bvecs_ras, ref_simg, space='ras')
     final_sgrad.save('/tmp/dummy.bval', args.out_bvecs)
 
 

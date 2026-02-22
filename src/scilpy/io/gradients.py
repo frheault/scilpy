@@ -65,7 +65,7 @@ def fsl2mrtrix(fsl_bval_filename, fsl_bvec_filename, mrtrix_filename, simg=None)
                                       dummy_simg)
 
     bvals = sgrad.bvals
-    bvecs = sgrad.to_rasmm()  # MRtrix uses World/RAS mm coordinates
+    bvecs = sgrad.to_ras()  # MRtrix uses World/RAS mm coordinates
 
     # bvecs are Nx3, need to be 3xN for save_gradient_sampling_mrtrix?
     # Let's check save_gradient_sampling_mrtrix
@@ -112,7 +112,7 @@ def mrtrix2fsl(mrtrix_filename, fsl_filename, simg=None):
         simg = StatefulImage(np.zeros((1, 1, 1)), np.eye(4))
         simg._original_affine = np.eye(4)
 
-    sgrad = StatefulGradient(shells, points_world, simg, space='rasmm')
+    sgrad = StatefulGradient(shells, points_world, simg, space='ras')
 
     # Save uses the original affine by default
     sgrad.save(fsl_filename + '.bval', fsl_filename + '.bvec')

@@ -219,8 +219,8 @@ def main():
     if args.lsr_resampling:
         if len(bvals) - n_rev == n_rev:
             # Directions check: use World space vectors for more robust comparison
-            forward_bb = bvals[:n_rev, None] * sgrad.to_rasmm()[:n_rev, :]
-            reverse_bb = bvals[n_rev:, None] * sgrad.to_rasmm()[n_rev:, :]
+            forward_bb = bvals[:n_rev, None] * sgrad.to_ras()[:n_rev, :]
+            reverse_bb = bvals[n_rev:, None] * sgrad.to_ras()[n_rev:, :]
             if np.allclose(forward_bb, reverse_bb):
                 additional_args += "--resamp=lsr --fep=true "
             else:

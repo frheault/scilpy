@@ -24,10 +24,9 @@ from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
-                             add_sh_basis_args, add_stateful_gradient_args,
-                             add_verbose_arg, assert_inputs_exist,
-                             assert_outputs_exist, parse_sh_basis_arg,
-                             validate_nbr_processes)
+                             add_sh_basis_args, add_verbose_arg,
+                             assert_inputs_exist, assert_outputs_exist,
+                             parse_sh_basis_arg, validate_nbr_processes)
 from scilpy.reconst.sh import convert_sh_to_sf
 from scilpy.version import version_string
 
@@ -215,7 +214,7 @@ def main():
     if args.out_bvec:
         # Create a temporary StatefulGradient to save in FSL format
         # relative to the original image orientation.
-        out_sgrad = StatefulGradient(np.zeros(len(new_bvecs)), 
+        out_sgrad = StatefulGradient(np.zeros(len(new_bvecs)),
                                      new_bvecs, vol_sh, space='rasmm')
         out_sgrad.save('/tmp/dummy.bval', args.out_bvec)
 

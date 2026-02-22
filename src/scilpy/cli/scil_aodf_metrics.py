@@ -183,7 +183,7 @@ def main():
 
         if args.peaks:
             res_img = nib.Nifti1Image(reshape_peaks_for_visualization(peaks),
-                                     sh_img.affine)
+                                      sh_img.affine)
             StatefulImage.create_from(res_img, sh_img).save(args.peaks)
 
         if args.peak_values:
@@ -200,6 +200,7 @@ def main():
             StatefulImage.create_from(res_img, sh_img).save(args.nufid)
 
     logging.info("Done. All files written to disk.")
+
 
 if __name__ == '__main__':
     main()

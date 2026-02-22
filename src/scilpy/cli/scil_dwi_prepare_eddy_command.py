@@ -14,7 +14,8 @@ import logging
 import os
 import subprocess
 
-from scilpy.io.gradients import read_bvals_bvecs
+import numpy as np
+
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg, add_verbose_arg,
@@ -103,7 +104,7 @@ def _build_arg_parser():
                    help='If set, will use the fixed seed strategy for eddy.\n'
                         'Enhances reproducibility.')
 
-    p.add_argument('--eddy_options',  default='',
+    p.add_argument('--eddy_options', default='',
                    help='Additional options you want to use to run eddy.\n'
                         'Add these options using quotes (i.e. "--ol_nstd=6'
                         ' --mb=4").')
@@ -122,7 +123,7 @@ def main():
     try:
         devnull = open(os.devnull)
         subprocess.call(args.eddy_cmd, stderr=devnull)
-    except:
+    except Exception:
         logging.warning(
             "{} not found. If executing locally, please install "
             "the command from the FSL library and make sure it is "
@@ -146,10 +147,9 @@ def main():
     vol = StatefulImage.load(args.in_dwi)
     sgrad = get_stateful_gradient_from_args(args, vol)
     bvals = sgrad.bvals
-    bvecs = sgrad.bvecs # These are in World space (RASmm) 
-    # but the original script transformed raw bvecs. 
-    # Actually, eddy expects bvecs in FSL (axis) space. 
-    # So we should use sgrad.get_bvecs_reoriented(vol.original_affine) 
+    # but the original script transformed raw bvecs.
+    # Actually, eddy expects bvecs in FSL (axis) space.
+    # So we should use sgrad.get_bvecs_reoriented(vol.original_affine)
     # to be safe, which is what sgrad.save() does.
 
     bvals_min = bvals.min()
@@ -199,7 +199,7 @@ def main():
     np.savetxt(acqparams_path, acqparams, fmt='%1.4f', delimiter=' ')
     index_path = os.path.join(args.out_directory, 'index.txt')
     np.savetxt(index_path, index, fmt='%i', newline=" ")
-    
+
     # Save axis-space bvecs for eddy
     bvecs_path = os.path.join(args.out_directory, 'non_zero_norm.bvecs')
     # Use StatefulGradient to save correctly

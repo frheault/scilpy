@@ -43,7 +43,6 @@ import logging
 import nibabel as nib
 import numpy as np
 
-from scilpy.image.utils import extract_affine
 from scilpy.io.btensor import generate_btensor_input
 from scilpy.io.image import get_data_as_mask
 from scilpy.io.stateful_image import StatefulImage
@@ -223,7 +222,7 @@ def main():
 
     if args.md:
         res_img = nib.Nifti1Image(parameters[..., 1].astype(np.float32),
-                                 affine)
+                                  affine)
         StatefulImage.create_from(res_img, ref_simg).save(args.md)
     if args.ufa:
         res_img = nib.Nifti1Image(microFA.astype(np.float32), affine)

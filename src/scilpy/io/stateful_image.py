@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import nibabel as nib
-import numpy as np
 from dipy.io.utils import get_reference_info
 from scilpy.utils.orientation import validate_voxel_order
 
@@ -116,25 +115,25 @@ class StatefulImage(nib.Nifti1Image):
         filename : str
             The path where the image will be saved.
         """
+        if self._original_axcodes is None:
+            raise ValueError("Original orientation information is missing. "
+                             "Cannot save safely.")
+
         # Revert to original orientation before saving
-        if self._original_axcodes:
-            # We must use a copy or a new object to not modify the current state
-            data = self.get_fdata()
-            img = nib.Nifti1Image(data, self.affine, self.header)
-            
-            current_axcodes = nib.orientations.aff2axcodes(self.affine)
-            start_ornt = nib.orientations.axcodes2ornt(current_axcodes)
-            target_ornt = nib.orientations.axcodes2ornt(self._original_axcodes)
-            transform = nib.orientations.ornt_transform(start_ornt,
-                                                        target_ornt)
-            
-            img_to_save = img.as_reoriented(transform)
-        else:
-            img_to_save = self
+        data = self.get_fdata()
+        img = nib.Nifti1Image(data, self.affine, self.header)
+
+        current_axcodes = nib.orientations.aff2axcodes(self.affine)
+        start_ornt = nib.orientations.axcodes2ornt(current_axcodes)
+        target_ornt = nib.orientations.axcodes2ornt(self._original_axcodes)
+        transform = nib.orientations.ornt_transform(start_ornt,
+                                                    target_ornt)
+
+        img_to_save = img.as_reoriented(transform)
 
         nib.save(img_to_save, filename)
 
-    def to_original_orientation(self):
+    def reorient_to_original(self):
         """
         Reorient the in-memory data to match the original on-disk orientation.
 
@@ -172,10 +171,10 @@ class StatefulImage(nib.Nifti1Image):
         target_ornt = nib.orientations.axcodes2ornt(target_axcodes)
         transform = nib.orientations.ornt_transform(start_ornt, target_ornt)
 
-        # Apply reorientation. nibabel handles 4D data by reorienting 
+        # Apply reorientation. nibabel handles 4D data by reorienting
         # the first 3 dimensions when a 3x2 orientation matrix is provided.
         reoriented_img = self.as_reoriented(transform)
-        
+
         # Update self with new data while keeping original orientation info
         self.__init__(reoriented_img.dataobj, reoriented_img.affine,
                       reoriented_img.header,
@@ -199,9 +198,24 @@ class StatefulImage(nib.Nifti1Image):
 
         Parameters
         ----------
-        obj : StatefulImage or nibabel image
-            The reference object.
+        obj : nibabel image
+            The reference object. Must NOT be a StatefulImage.
         """
+        if isinstance(obj, StatefulImage):
+            raise TypeError("Reference object must not be a StatefulImage.")
+
         ref_info = get_reference_info(obj)
         target_axcodes = ref_info[3]
         self.reorient(target_axcodes)
+
+    def __str__(self):
+        """
+        String representation of the StatefulImage.
+        """
+        reoriented = self.axcodes != self.original_axcodes
+        s = f"\n{type(self)}\n"
+        s += f"data shape {self.header.get_data_shape()}\n"
+        s += f"Original axis codes:    {self.original_axcodes}\n"
+        s += f"Current axis codes:     {self.axcodes}\n"
+        s += f"Reoriented from original: {reoriented}\n"
+        return s

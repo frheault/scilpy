@@ -2,12 +2,12 @@
 
 from dipy.io.utils import is_header_compatible
 import logging
-import nibabel as nib
 import numpy as np
 import os
 
 from scilpy.utils import is_float
 from scilpy.io.stateful_image import StatefulImage
+
 
 def load_img(arg):
     """

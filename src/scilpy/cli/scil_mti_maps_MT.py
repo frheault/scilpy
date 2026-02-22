@@ -225,14 +225,14 @@ def main():
             if 'positive' in contrast_names_og:
                 res_img = nib.Nifti1Image(MTsat_sp, affine)
                 StatefulImage.create_from(res_img, simg_ref).save(
-                         os.path.join(extended_dir, "MTsat_positive.nii.gz"))
+                    os.path.join(extended_dir, "MTsat_positive.nii.gz"))
             if 'negative' in contrast_names_og:
                 res_img = nib.Nifti1Image(MTsat_sn, affine)
                 StatefulImage.create_from(res_img, simg_ref).save(
-                         os.path.join(extended_dir, "MTsat_negative.nii.gz"))
+                    os.path.join(extended_dir, "MTsat_negative.nii.gz"))
             res_img = nib.Nifti1Image(R1app, affine)
             StatefulImage.create_from(res_img, simg_ref).save(
-                     os.path.join(extended_dir, "apparent_R1.nii.gz"))
+                os.path.join(extended_dir, "apparent_R1.nii.gz"))
 
         # Apply model-based B1 correction
         if args.in_B1_map and args.B1_correction_method == 'model_based':
@@ -276,7 +276,7 @@ def main():
     for img_to_save, name in zip(img_data_list, img_names):
         res_img = nib.Nifti1Image(img_to_save.astype(np.float32), affine)
         StatefulImage.create_from(res_img, simg_ref).save(
-                 os.path.join(output_dir, name + '.nii.gz'))
+            os.path.join(output_dir, name + '.nii.gz'))
 
 
 if __name__ == '__main__':

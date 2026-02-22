@@ -16,8 +16,6 @@ Reference:
 import argparse
 import logging
 
-from dipy.io.gradients import read_bvals_bvecs
-import nibabel as nib
 import numpy as np
 
 from scilpy.gradients.bvec_bval_tools import check_b0_threshold
@@ -106,6 +104,7 @@ def main():
     data = vol.get_fdata(dtype=np.float32)
 
     sgrad = get_stateful_gradient_from_args(args, vol)
+    print(sgrad.bvecs[0:5, :])
     args.b0_threshold = check_b0_threshold(sgrad.bvals.min(),
                                            b0_thr=args.b0_threshold,
                                            skip_b0_check=args.skip_b0_check)

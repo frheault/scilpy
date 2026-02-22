@@ -106,9 +106,9 @@ def main():
                        fractional_anisotropy(lambdas[:, :, :, 6:9])),
                       axis=3)
         res_img = nib.Nifti1Image(fa * mask[..., None],
-                                 affine=affine,
-                                 header=header,
-                                 dtype=np.float32)
+                                  affine=affine,
+                                  header=header,
+                                  dtype=np.float32)
         StatefulImage.create_from(res_img, evals_img).save(args.fa)
 
     if args.ad:
@@ -117,20 +117,20 @@ def main():
                        lambdas[:, :, :, 6]),
                       axis=3)
         res_img = nib.Nifti1Image(ad * mask[..., None],
-                                 affine=affine,
-                                 header=header,
-                                 dtype=np.float32)
+                                  affine=affine,
+                                  header=header,
+                                  dtype=np.float32)
         StatefulImage.create_from(res_img, evals_img).save(args.ad)
 
     if args.rd:
-        rd = np.stack(((lambdas[:, :, :, 1] + lambdas[:, :, :, 2])/2,
-                       (lambdas[:, :, :, 4] + lambdas[:, :, :, 5])/2,
-                       (lambdas[:, :, :, 7] + lambdas[:, :, :, 8])/2),
+        rd = np.stack(((lambdas[:, :, :, 1] + lambdas[:, :, :, 2]) / 2,
+                       (lambdas[:, :, :, 4] + lambdas[:, :, :, 5]) / 2,
+                       (lambdas[:, :, :, 7] + lambdas[:, :, :, 8]) / 2),
                       axis=3)
         res_img = nib.Nifti1Image(rd * mask[..., None],
-                                 affine=affine,
-                                 header=header,
-                                 dtype=np.float32)
+                                  affine=affine,
+                                  header=header,
+                                  dtype=np.float32)
         StatefulImage.create_from(res_img, evals_img).save(args.rd)
 
     if args.md:
@@ -139,9 +139,9 @@ def main():
                        np.average(lambdas[:, :, :, 6:9], axis=3)),
                       axis=3)
         res_img = nib.Nifti1Image(md * mask[..., None],
-                                 affine=affine,
-                                 header=header,
-                                 dtype=np.float32)
+                                  affine=affine,
+                                  header=header,
+                                  dtype=np.float32)
         StatefulImage.create_from(res_img, evals_img).save(args.md)
 
 

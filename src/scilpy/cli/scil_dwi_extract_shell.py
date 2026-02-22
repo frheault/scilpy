@@ -23,7 +23,6 @@ import nibabel as nib
 import numpy as np
 
 from scilpy.dwi.utils import extract_dwi_shell
-from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg, add_stateful_gradient_args,
@@ -89,7 +88,7 @@ def main():
     # Save results using Stateful objects to preserve original affine
     final_sgrad = StatefulGradient(new_bvals, new_bvecs_rasmm, img, space='rasmm')
     final_sgrad.save(args.out_bval, args.out_bvec)
-    
+
     res_img = nib.Nifti1Image(shell_data, img.affine, header=img.header)
     StatefulImage.create_from(res_img, img).save(args.out_dwi)
 

@@ -103,7 +103,6 @@ References:
 import argparse
 import logging
 import os
-import sys
 
 import nibabel as nib
 import numpy as np
@@ -240,20 +239,20 @@ def main():
         if args.extended:
             res_img = nib.Nifti1Image(MTsat_sp, affine)
             StatefulImage.create_from(res_img, simg_ref).save(
-                     os.path.join(extended_dir,
-                                  out_prefix + "MTsat_single_positive.nii.gz"))
+                os.path.join(extended_dir,
+                             out_prefix + "MTsat_single_positive.nii.gz"))
             res_img = nib.Nifti1Image(MTsat_sn, affine)
             StatefulImage.create_from(res_img, simg_ref).save(
-                     os.path.join(extended_dir,
-                                  out_prefix + "MTsat_single_negative.nii.gz"))
+                os.path.join(extended_dir,
+                             out_prefix + "MTsat_single_negative.nii.gz"))
             res_img = nib.Nifti1Image(MTsat_d, affine)
             StatefulImage.create_from(res_img, simg_ref).save(
-                     os.path.join(extended_dir,
-                                  out_prefix + "MTsat_dual.nii.gz"))
+                os.path.join(extended_dir,
+                             out_prefix + "MTsat_dual.nii.gz"))
             res_img = nib.Nifti1Image(R1app, affine)
             StatefulImage.create_from(res_img, simg_ref).save(
-                     os.path.join(extended_dir,
-                                  out_prefix + "apparent_R1.nii.gz"))
+                os.path.join(extended_dir,
+                             out_prefix + "apparent_R1.nii.gz"))
 
         MTsat_maps = [MTsat_sp, MTsat_sn, MTsat_d]
 
@@ -301,7 +300,7 @@ def main():
     for img_to_save, name in zip(img_data, img_name):
         res_img = nib.Nifti1Image(img_to_save.astype(np.float32), affine)
         StatefulImage.create_from(res_img, simg_ref).save(
-                 os.path.join(output_dir, name + '.nii.gz'))
+            os.path.join(output_dir, name + '.nii.gz'))
 
 
 if __name__ == '__main__':

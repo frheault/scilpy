@@ -6,7 +6,7 @@ The templates are on http://www.bic.mni.mcgill.ca/ServicesAtlases/ICBM152NLin200
 
 For quick quality control, the MNI template can be downsampled to 2mm iso.
 Axial, coronal and sagittal slices are captured.
-""" # noqa
+"""  # noqa
 
 import argparse
 import logging
@@ -15,12 +15,10 @@ import os
 from dipy.core.gradients import gradient_table, get_bval_indices
 from dipy.reconst.dti import fractional_anisotropy, TensorModel
 from fury import actor
-import nibabel as nib
 import numpy as np
 
 from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.stateful_image import StatefulImage
-from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg,
                              add_verbose_arg,
                              assert_inputs_exist,
@@ -117,12 +115,12 @@ def prepare_data_for_actors(dwi_filename, bvals_filename, bvecs_filename,
     # Rotate gradients (RASmm vectors rotated by rigid transform)
     rotated_bvecs_rasmm = np.dot(shell_bvecs_rasmm, transformation[0:3, 0:3])
 
-    # No need to manually normalize if StatefulGradient already does it, 
+    # No need to manually normalize if StatefulGradient already does it,
     # but transformation might affect it slightly.
     norms = np.linalg.norm(rotated_bvecs_rasmm, axis=1)
     idx = norms > 0
     rotated_bvecs_rasmm[idx] /= norms[idx, None]
-    
+
     rotated_gtab = gradient_table(shell_bvals, bvecs=rotated_bvecs_rasmm,
                                   b0_threshold=10)
 
@@ -179,7 +177,7 @@ def main():
     target_template_img = StatefulImage.load(args.in_template)
     zooms = 1 / float(target_template_img.header.get_zooms()[0])
 
-    x_slice = int(target_template_img.shape[0] / 2 + zooms*30)
+    x_slice = int(target_template_img.shape[0] / 2 + zooms * 30)
     y_slice = int(target_template_img.shape[1] / 2)
     z_slice = int(target_template_img.shape[2] / 2)
     slices_choice = (x_slice, y_slice, z_slice)

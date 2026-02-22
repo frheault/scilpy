@@ -27,10 +27,10 @@ def py_fspecial_gauss(shape, sigma):
     -------
     Two-dimensional Gaussian filter h of specified size.
     """
-    m, n = [(ss-1.)/2. for ss in shape]
-    y, x = np.ogrid[-m:m+1, -n:n+1]
-    h = np.exp(-(x*x + y*y) / (2.*sigma*sigma))
-    h[h < np.finfo(h.dtype).eps*h.max()] = 0
+    m, n = [(ss - 1.) / 2. for ss in shape]
+    y, x = np.ogrid[-m:m + 1, -n:n + 1]
+    h = np.exp(-(x * x + y * y) / (2. * sigma * sigma))
+    h[h < np.finfo(h.dtype).eps * h.max()] = 0
     sumh = h.sum()
     if sumh != 0:
         h /= sumh
@@ -152,7 +152,7 @@ def compute_ratio_map(mt_on_single, mt_off, mt_on_dual=None):
     return MTR
 
 
-def threshold_map(computed_map,  in_mask,
+def threshold_map(computed_map, in_mask,
                   lower_threshold, upper_threshold,
                   idx_contrast_list=None, contrast_maps=None):
     """
@@ -261,7 +261,7 @@ def apply_B1_corr_empiric(MT_map, B1_map):
     ----------
     Corrected MT matrix in 3D-array.
     """
-    MT_map_B1_corrected = MT_map*(1.0-0.4)/(1-0.4*(B1_map))
+    MT_map_B1_corrected = MT_map * (1.0 - 0.4) / (1 - 0.4 * (B1_map))
     return MT_map_B1_corrected
 
 

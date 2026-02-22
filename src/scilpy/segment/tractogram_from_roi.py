@@ -134,10 +134,10 @@ def _extract_and_save_tails_heads_from_endpoints(gt_endpoints, out_dir):
     basename = os.path.basename(split_name_with_nii(gt_endpoints)[0])
     tail_filename = os.path.join(out_dir, '{}_tail.nii.gz'.format(basename))
     head_filename = os.path.join(out_dir, '{}_head.nii.gz'.format(basename))
-    
+
     res_img_head = nib.Nifti1Image(head.astype(mask.dtype), affine)
     StatefulImage.create_from(res_img_head, mask_img).save(head_filename)
-    
+
     res_img_tail = nib.Nifti1Image(tail.astype(mask.dtype), affine)
     StatefulImage.create_from(res_img_tail, mask_img).save(tail_filename)
 

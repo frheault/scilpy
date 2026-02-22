@@ -296,7 +296,7 @@ def main():
         for i in range(3):
             res_img = nib.Nifti1Image(evecs[..., i], affine)
             StatefulImage.create_from(res_img, img).save(
-                add_filename_suffix(args.evecs, '_v'+str(i+1)))
+                add_filename_suffix(args.evecs, '_v' + str(i + 1)))
 
     if args.evals:
         evals = tenfit.evals.astype(np.float32)
@@ -307,7 +307,7 @@ def main():
         for i in range(3):
             res_img = nib.Nifti1Image(evals[..., i], affine)
             StatefulImage.create_from(res_img, img).save(
-                add_filename_suffix(args.evals, '_e' + str(i+1)))
+                add_filename_suffix(args.evals, '_e' + str(i + 1)))
 
     if args.p_i_signal:
         S0 = np.mean(data[..., gtab.b0s_mask], axis=-1, keepdims=True)
@@ -328,7 +328,7 @@ def main():
 
         res_img = nib.Nifti1Image(STD.astype(np.float32), affine)
         StatefulImage.create_from(res_img, img).save(
-                add_filename_suffix(args.pulsation, '_std_dwi'))
+            add_filename_suffix(args.pulsation, '_std_dwi'))
 
         if np.sum(gtab.b0s_mask) <= 1:
             logger.info('Not enough b=0 images to output standard '

@@ -33,7 +33,6 @@ import argparse
 import logging
 
 import numpy as np
-import nibabel as nib
 
 from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.stateful_image import StatefulImage
@@ -88,10 +87,10 @@ def main():
 
     peaks_simg = StatefulImage.load(args.in_peaks)
     fa_simg = StatefulImage.load(args.in_FA)
-    
+
     # Load bvecs relative to the peaks image (which is standard RAS in memory)
     sgrad = read_bvals_bvecs(None, args.in_bvec, simg=peaks_simg)
-    
+
     fa = fa_simg.get_fdata()
     peaks = peaks_simg.get_fdata()
 
@@ -129,7 +128,7 @@ def main():
     logging.info('Saving bvecs to file: {0}.'.format(args.out_bvec))
 
     # Save corrected bvecs using original affine of peaks_simg
-    final_sgrad = StatefulGradient(np.zeros(len(correct_bvecs_rasmm)), 
+    final_sgrad = StatefulGradient(np.zeros(len(correct_bvecs_rasmm)),
                                    correct_bvecs_rasmm, peaks_simg, space='rasmm')
     final_sgrad.save('/tmp/dummy.bval', args.out_bvec)
 

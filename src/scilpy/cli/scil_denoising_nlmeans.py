@@ -217,7 +217,7 @@ def main():
             logging.info("Saving resulting Piesno noise mask in {}"
                          .format(args.save_piesno_mask))
             res_img = nib.Nifti1Image(mask_noise, vol.affine,
-                                     header=vol.header)
+                                      header=vol.header)
             StatefulImage.create_from(res_img, vol).save(args.save_piesno_mask)
 
         # Broadcast the values per slice to a whole 3D volume for nlmeans

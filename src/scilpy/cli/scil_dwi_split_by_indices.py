@@ -18,7 +18,6 @@ import logging
 import nibabel as nib
 import numpy as np
 
-from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg, add_stateful_gradient_args,
@@ -84,20 +83,20 @@ def main():
     indices = np.concatenate(([0], split_indices, [img.shape[-1]]))
 
     out_names = np.ndarray((len(split_indices) + 1), dtype=object)
-    for i in range(len(indices)-1):
-        index_name = "_" + str(indices[i]) + "_" + str(indices[i+1] - 1)
+    for i in range(len(indices) - 1):
+        index_name = "_" + str(indices[i]) + "_" + str(indices[i + 1] - 1)
         out_names[i] = args.out_basename + index_name
     assert_outputs_exist(parser, args, out_names)
 
-    for i in range(len(indices)-1):
-        data_split = img.get_fdata()[..., indices[i]:indices[i+1]]
-        bvals_split = sgrad.bvals[indices[i]:indices[i+1]]
-        bvecs_rasmm_split = sgrad.to_rasmm()[indices[i]:indices[i+1]]
-        
+    for i in range(len(indices) - 1):
+        data_split = img.get_fdata()[..., indices[i]:indices[i + 1]]
+        bvals_split = sgrad.bvals[indices[i]:indices[i + 1]]
+        bvecs_rasmm_split = sgrad.to_rasmm()[indices[i]:indices[i + 1]]
+
         # Saving the output files
         new_img = nib.Nifti1Image(data_split, img.affine, header=img.header)
         StatefulImage.create_from(new_img, img).save(out_names[i] + ".nii.gz")
-        
+
         split_sgrad = StatefulGradient(bvals_split, bvecs_rasmm_split, img, space='rasmm')
         split_sgrad.save(out_names[i] + ".bval", out_names[i] + ".bvec")
 

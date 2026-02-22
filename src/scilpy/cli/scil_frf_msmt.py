@@ -31,10 +31,8 @@ import numpy as np
 
 from scilpy.dwi.utils import extract_dwi_shell
 from scilpy.gradients.bvec_bval_tools import check_b0_threshold
-from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.image import get_data_as_mask
 from scilpy.io.stateful_image import StatefulImage
-from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg, add_precision_arg,
                              add_skip_b0_check_arg, add_stateful_gradient_args,
                              add_verbose_arg, assert_inputs_exist,

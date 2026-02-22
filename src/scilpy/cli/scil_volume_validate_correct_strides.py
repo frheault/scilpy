@@ -33,16 +33,14 @@ import logging
 from dipy.core.gradients import gradient_table
 from dipy.reconst.dti import TensorModel, fractional_anisotropy
 import numpy as np
-import nibabel as nib
 
 from scilpy.gradients.bvec_bval_tools import check_b0_threshold
-from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_b0_thresh_arg, add_overwrite_arg,
                              add_skip_b0_check_arg, add_stateful_gradient_args,
                              add_verbose_arg, assert_inputs_exist,
-                             assert_outputs_exist, 
+                             assert_outputs_exist,
                              get_stateful_gradient_from_args)
 from scilpy.reconst.fiber_coherence import compute_coherence_table_for_transforms
 from scilpy.version import version_string
@@ -53,7 +51,7 @@ def _build_arg_parser():
                                 formatter_class=argparse.RawTextHelpFormatter,
                                 epilog=version_string)
 
-    p.add_argument('in_data', 
+    p.add_argument('in_data',
                    help='Path to input nifti file.')
     p.add_argument('out_data',
                    help='Path to output nifti file with corrected strides.')
@@ -93,57 +91,57 @@ def main():
     # Load image. StatefulImage.load() automatically standardizes to RAS
     # and keeps the original orientation info.
     simg = StatefulImage.load(args.in_data)
-    
-    # Correction: Original script wanted strides [1, 2, 3] which corresponds 
+
+    # Correction: Original script wanted strides [1, 2, 3] which corresponds
     # to RAS order but maybe different from the standardised in-memory RAS.
     # Actually, "correct strides" usually means the identity orientation.
-    # Since StatefulImage standardizes to RAS, saving it will revert 
+    # Since StatefulImage standardizes to RAS, saving it will revert
     # to original. To FORCE new strides, we must update the state.
-    
+
     # We want to save the data in RAS orientation (strides 1,2,3)
-    # The in-memory data is already RAS. We just need to tell the simg 
+    # The in-memory data is already RAS. We just need to tell the simg
     # that its "original" state is now RAS.
     simg._original_axcodes = ('R', 'A', 'S')
     simg._original_affine = simg.affine.copy()
-    
+
     simg.save(args.out_data)
 
     if args.in_bvec:
         # Load gradients relative to the image
         sgrad = get_stateful_gradient_from_args(args, simg)
-        
+
         if args.validate_bvec:
             logging.info('Validating b-vectors from fiber coherence index...')
             data = simg.get_fdata().astype(np.float32)
             if len(data.shape) != 4:
                 parser.error('Input data must be DWI (4D) when --validate_bvec '
                              'is set.')
-            
+
             args.b0_threshold = check_b0_threshold(sgrad.bvals.min(),
                                                    b0_thr=args.b0_threshold,
                                                    skip_b0_check=args.skip_b0_check)
             gtab = gradient_table(sgrad.bvals, bvecs=sgrad.bvecs,
                                   b0_threshold=args.b0_threshold)
-            
+
             tenmodel = TensorModel(gtab, fit_method='WLS',
                                    min_signal=np.min(data[data > 0]))
-            
+
             mask = np.zeros(data.shape[:3], dtype=bool)
-            interval_i = slice(data.shape[0]//2 - data.shape[0]//4,
-                               data.shape[0]//2 + data.shape[0]//4)
-            interval_j = slice(data.shape[1]//2 - data.shape[1]//4,
-                               data.shape[1]//2 + data.shape[1]//4)
-            interval_k = slice(data.shape[2]//2 - data.shape[2]//4,
-                               data.shape[2]//2 + data.shape[2]//4)
+            interval_i = slice(data.shape[0] // 2 - data.shape[0] // 4,
+                               data.shape[0] // 2 + data.shape[0] // 4)
+            interval_j = slice(data.shape[1] // 2 - data.shape[1] // 4,
+                               data.shape[1] // 2 + data.shape[1] // 4)
+            interval_k = slice(data.shape[2] // 2 - data.shape[2] // 4,
+                               data.shape[2] // 2 + data.shape[2] // 4)
             mask[interval_i, interval_j, interval_k] = 1
-            
+
             tenfit = tenmodel.fit(data, mask=mask)
             fa = fractional_anisotropy(tenfit.evals)
             evecs = tenfit.evecs.astype(np.float32)[..., 0]
             evecs[fa < 0.2] = 0
-            coherence, transform = compute_coherence_table_for_transforms(evecs, 
+            coherence, transform = compute_coherence_table_for_transforms(evecs,
                                                                           fa)
-            
+
             best_t = transform[np.argmax(coherence)]
             if (best_t == np.eye(3)).all():
                 logging.info('The b-vectors are aligned with the original data.')
@@ -157,9 +155,9 @@ def main():
             final_bvecs_rasmm = sgrad.to_rasmm()
 
         # Save corrected/permuted bvecs
-        # Since we changed simg._original_affine to RAS, 
+        # Since we changed simg._original_affine to RAS,
         # saving through StatefulGradient will export them in RAS.
-        final_sgrad = StatefulGradient(sgrad.bvals, final_bvecs_rasmm, 
+        final_sgrad = StatefulGradient(sgrad.bvals, final_bvecs_rasmm,
                                        simg, space='rasmm')
         # We only need to save the bvecs here as requested by --out_bvec
         final_sgrad.save('/tmp/dummy.bval', args.out_bvec)

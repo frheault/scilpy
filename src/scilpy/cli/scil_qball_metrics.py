@@ -22,7 +22,6 @@ import numpy as np
 
 from dipy.core.gradients import gradient_table
 from dipy.data import get_sphere
-from dipy.io import read_bvals_bvecs
 from dipy.direction.peaks import (peaks_from_model,
                                   reshape_peaks_for_visualization)
 from dipy.reconst.shm import QballModel, CsaOdfModel, anisotropic_power
@@ -168,7 +167,7 @@ def main():
 
     if args.peaks:
         res_img = nib.Nifti1Image(reshape_peaks_for_visualization(odfpeaks),
-                 img.affine)
+                                  img.affine)
         StatefulImage.create_from(res_img, img).save(args.peaks)
 
     if args.peak_indices:

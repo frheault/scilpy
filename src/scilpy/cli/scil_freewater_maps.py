@@ -27,7 +27,7 @@ import tempfile
 import amico
 import numpy as np
 
-from scilpy.io.gradients import fsl2mrtrix, read_bvals_bvecs
+from scilpy.io.gradients import fsl2mrtrix
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg,
                              add_processes_arg,
@@ -121,10 +121,10 @@ def main():
     tmp_dir = tempfile.TemporaryDirectory()
     tmp_scheme_filename = os.path.join(tmp_dir.name, 'gradients.b')
     tmp_bval_filename = os.path.join(tmp_dir.name, 'bval')
-    
+
     vol = StatefulImage.load(args.in_dwi)
     sgrad = get_stateful_gradient_from_args(args, vol)
-    
+
     shells_centroids, indices_shells = identify_shells(sgrad.bvals, args.b_thr,
                                                        round_centroids=True)
     np.savetxt(tmp_bval_filename, shells_centroids[indices_shells],

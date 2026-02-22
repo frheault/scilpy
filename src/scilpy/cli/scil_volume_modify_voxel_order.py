@@ -13,14 +13,11 @@ axes system.
 import argparse
 import logging
 
-import nibabel as nib
-import numpy as np
 
 from scilpy.io.stateful_image import StatefulImage
-from scilpy.io.stateful_gradient import StatefulGradient
 from scilpy.io.utils import (add_overwrite_arg, add_stateful_gradient_args,
                              add_verbose_arg, assert_inputs_exist,
-                             assert_outputs_exist, 
+                             assert_outputs_exist,
                              get_stateful_gradient_from_args)
 from scilpy.utils.orientation import parse_voxel_order
 from scilpy.version import version_string

@@ -95,12 +95,12 @@ def main():
     data = dwi.get_fdata()
     data = data[:, :, :, new_index]
 
-    # Reorder unscaled data logic from original: 
-    # Actually StatefulImage doesn't explicitly expose unscaled easily yet, 
+    # Reorder unscaled data logic from original:
+    # Actually StatefulImage doesn't explicitly expose unscaled easily yet,
     # but we can use .dataobj if we want to be exact.
-    # But since we want to preserve header anyway, let's use the StatefulImage 
+    # But since we want to preserve header anyway, let's use the StatefulImage
     # to create from.
-    
+
     new_img = nib.Nifti1Image(data, dwi.affine, header=dwi.header)
     # Re-wrap to StatefulImage to save with original strides
     out_simg = StatefulImage.create_from(new_img, dwi)

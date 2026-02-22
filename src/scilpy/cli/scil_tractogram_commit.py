@@ -99,7 +99,7 @@ import h5py
 import numpy as np
 import nibabel as nib
 
-from scilpy.io.gradients import fsl2mrtrix, read_bvals_bvecs
+from scilpy.io.gradients import fsl2mrtrix
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.hdf5 import (reconstruct_sft_from_hdf5,
                             construct_hdf5_group_from_streamlines,

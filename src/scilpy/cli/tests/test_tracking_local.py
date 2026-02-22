@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from scilpy.gpuparallel.opencl_utils import have_opencl
 import os
 import tempfile
 import numpy as np
@@ -11,9 +12,6 @@ from scilpy.io.fetcher import fetch_data, get_testing_files_dict
 # If they already exist, this only takes 5 seconds (check md5sum)
 fetch_data(get_testing_files_dict(), keys=['tracking.zip'])
 tmp_dir = tempfile.TemporaryDirectory()
-
-
-from scilpy.gpuparallel.opencl_utils import have_opencl
 
 
 def test_help_option(script_runner):

@@ -72,7 +72,7 @@ def main():
     new_bvecs_rasmm = sgrad.to_rasmm() @ transfo
 
     # Save transformed bvecs using original affine of reference
-    final_sgrad = StatefulGradient(np.zeros(len(new_bvecs_rasmm)), 
+    final_sgrad = StatefulGradient(np.zeros(len(new_bvecs_rasmm)),
                                    new_bvecs_rasmm, ref_simg, space='rasmm')
     final_sgrad.save('/tmp/dummy.bval', args.out_bvecs)
 

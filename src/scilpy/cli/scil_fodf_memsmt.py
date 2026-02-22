@@ -45,7 +45,6 @@ from dipy.reconst.mcsd import MultiShellDeconvModel, multi_shell_fiber_response
 import nibabel as nib
 import numpy as np
 
-from scilpy.image.utils import extract_affine
 from scilpy.io.btensor import (generate_btensor_input,
                                convert_bdelta_to_bshape)
 from scilpy.io.image import get_data_as_mask
@@ -229,7 +228,7 @@ def main():
                                     is_output_legacy=is_legacy,
                                     nbr_processes=args.nbr_processes)
         res_img = nib.Nifti1Image(wm_coeff.astype(np.float32),
-                                 affine)
+                                  affine)
         StatefulImage.create_from(res_img, simg_ref).save(args.wm_out_fODF)
 
     if args.gm_out_fODF:
@@ -242,7 +241,7 @@ def main():
                                     is_output_legacy=is_legacy,
                                     nbr_processes=args.nbr_processes)
         res_img = nib.Nifti1Image(gm_coeff.astype(np.float32),
-                                 affine)
+                                  affine)
         StatefulImage.create_from(res_img, simg_ref).save(args.gm_out_fODF)
 
     if args.csf_out_fODF:
@@ -255,7 +254,7 @@ def main():
                                      is_output_legacy=is_legacy,
                                      nbr_processes=args.nbr_processes)
         res_img = nib.Nifti1Image(csf_coeff.astype(np.float32),
-                                 affine)
+                                  affine)
         StatefulImage.create_from(res_img, simg_ref).save(args.csf_out_fODF)
 
     if args.vf:
@@ -266,7 +265,7 @@ def main():
         vf_rgb = vf / np.max(vf) * 255
         vf_rgb = np.clip(vf_rgb, 0, 255)
         res_img = nib.Nifti1Image(vf_rgb.astype(np.uint8),
-                                 affine)
+                                  affine)
         StatefulImage.create_from(res_img, simg_ref).save(args.vf_rgb)
 
 

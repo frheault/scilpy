@@ -69,30 +69,30 @@ def main():
     all_bvecs_rasmm = []
     total_size = 0
     ref_dwi = StatefulImage.load(args.in_dwis[0])
-    
+
     # Process first input
     sgrad = read_bvals_bvecs(args.in_bvals[0], args.in_bvecs[0], simg=ref_dwi)
     total_size += len(sgrad.bvals)
     all_bvals.append(sgrad.bvals)
     all_bvecs_rasmm.append(sgrad.to_rasmm())
-    
+
     all_dwi = np.zeros(ref_dwi.shape[0:3] + (0,), dtype=args.data_type)
-    # We will build all_dwi list and concatenate at once for better efficiency 
+    # We will build all_dwi list and concatenate at once for better efficiency
     # if it was many small ones, but here we follow the original logic of pre-allocating
-    # or just concatenating data. 
-    # Actually, the original script pre-allocates based on total_size. 
+    # or just concatenating data.
+    # Actually, the original script pre-allocates based on total_size.
     # I need total_size first.
-    
+
     for i in range(1, len(args.in_dwis)):
         curr_dwi = StatefulImage.load(args.in_dwis[i])
         if not is_header_compatible(curr_dwi, ref_dwi):
             raise ValueError('All DWI must have the compatible header.')
-        
-        curr_sgrad = read_bvals_bvecs(args.in_bvals[i], args.in_bvecs[i], 
+
+        curr_sgrad = read_bvals_bvecs(args.in_bvals[i], args.in_bvecs[i],
                                       simg=curr_dwi)
         if len(curr_sgrad.bvals) != curr_dwi.shape[-1]:
-             raise ValueError('Paired bvals and DWI must have the same size.')
-             
+            raise ValueError('Paired bvals and DWI must have the same size.')
+
         total_size += len(curr_sgrad.bvals)
         all_bvals.append(curr_sgrad.bvals)
         all_bvecs_rasmm.append(curr_sgrad.to_rasmm())
@@ -102,12 +102,12 @@ def main():
 
     all_dwi = np.zeros(ref_dwi.shape[0:3] + (total_size,),
                        dtype=args.data_type or ref_dwi.get_data_dtype())
-    
+
     last_count = 0
     for i in range(len(args.in_dwis)):
         curr_dwi = StatefulImage.load(args.in_dwis[i])
         curr_size = curr_dwi.shape[-1]
-        all_dwi[..., last_count:last_count+curr_size] = curr_dwi.get_fdata()
+        all_dwi[..., last_count:last_count + curr_size] = curr_dwi.get_fdata()
         last_count += curr_size
 
     # Save results

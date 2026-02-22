@@ -397,7 +397,7 @@ def compute_snr(dwi, bval, bvec, b0_thr, mask, noise_mask=None, noise_map=None,
 
             # Add the upper half in order to delete the neck and shoulder
             # when inverting the mask
-            noise_mask[..., :noise_mask.shape[-1]//2] = 1
+            noise_mask[..., :noise_mask.shape[-1] // 2] = 1
 
             # Reverse the mask to get only noise
             noise_mask = (~noise_mask).astype(bool)

@@ -36,7 +36,6 @@ import nibabel as nib
 import numpy as np
 import pandas as pd
 
-from scilpy.io.gradients import read_bvals_bvecs
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_json_args, add_overwrite_arg,
                              add_stateful_gradient_args,

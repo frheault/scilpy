@@ -16,9 +16,7 @@ from dipy.reconst.csdeconv import ConstrainedSphericalDeconvModel
 import nibabel as nib
 import numpy as np
 
-from scilpy.gradients.bvec_bval_tools import (check_b0_threshold,
-                                              normalize_bvecs,
-                                              is_normalized_bvecs)
+from scilpy.gradients.bvec_bval_tools import check_b0_threshold
 from scilpy.io.image import get_data_as_mask
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_b0_thresh_arg, add_overwrite_arg,
@@ -129,8 +127,8 @@ def main():
                                  is_output_legacy=is_legacy,
                                  nbr_processes=args.nbr_processes)
     res_img = nib.Nifti1Image(shm_coeff.astype(np.float32),
-                             affine=vol.affine,
-                             header=vol.header)
+                              affine=vol.affine,
+                              header=vol.header)
     StatefulImage.create_from(res_img, vol).save(args.out_fODF)
 
 

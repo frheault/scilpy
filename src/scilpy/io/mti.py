@@ -160,10 +160,10 @@ def load_and_verify_mti(args, parser, input_maps_lists, extended_dir, simg_ref,
                                                   single_echo=single_echo))
         if args.extended:
             res_img = nib.Nifti1Image(contrast_maps[idx].astype(np.float32),
-                                     affine)
+                                      affine)
             StatefulImage.create_from(res_img, simg_ref).save(
-                     os.path.join(extended_dir,
-                                  contrast_names[idx] + '.nii.gz'))
+                os.path.join(extended_dir,
+                             contrast_names[idx] + '.nii.gz'))
 
     return single_echo, flip_angles, rep_times, B1_map, contrast_maps
 
@@ -242,5 +242,5 @@ def _prepare_B1_map(args, flip_angles, extended_dir, simg_ref):
         if args.extended:
             res_img = nib.Nifti1Image(B1_map, simg_ref.affine)
             StatefulImage.create_from(res_img, simg_ref).save(
-                     os.path.join(extended_dir, "B1_map.nii.gz"))
+                os.path.join(extended_dir, "B1_map.nii.gz"))
     return B1_map, flip_angles

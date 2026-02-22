@@ -17,7 +17,6 @@ To:
 import argparse
 import logging
 
-import nibabel as nib
 import numpy as np
 
 from scilpy.io.utils import (add_verbose_arg, add_overwrite_arg,

@@ -55,21 +55,21 @@ def test_execution(script_runner, monkeypatch):
 
 def test_execution_with_bvecs(script_runner, monkeypatch):
     monkeypatch.chdir(os.path.expanduser(tmp_dir.name))
-    
+
     # 1. Setup RAS data
     in_file = 'ras.nii.gz'
     data = np.zeros((10, 10, 10, 2))
     affine = np.eye(4)
     img = nib.Nifti1Image(data, affine)
     nib.save(img, in_file)
-    
+
     # Vector 1: [1, 0, 0] (Right)
     # Vector 2: [0, 1, 0] (Anterior)
     bvals = np.array([1000, 1000])
     bvecs = np.array([[1, 0, 0], [0, 1, 0]])
     np.savetxt('ras.bval', bvals[None, :], fmt='%d')
     np.savetxt('ras.bvec', bvecs.T, fmt='%.8f')
-    
+
     # 2. Run reorient to LPI
     # LPI: x=L, y=P, z=I (all 3 axes flipped compared to RAS)
     out_file = 'lpi.nii.gz'
@@ -79,14 +79,14 @@ def test_execution_with_bvecs(script_runner, monkeypatch):
                              '--in_bval', 'ras.bval', '--in_bvec', 'ras.bvec',
                              '--out_bvec', out_bvec, '-f'])
     assert ret.success
-    
+
     # 3. Verify results
     lpi_img = nib.load(out_file)
     assert nib.aff2axcodes(lpi_img.affine) == ('L', 'P', 'I')
-    
-    lpi_bvecs = np.loadtxt(out_bvec).T # (N, 3)
+
+    lpi_bvecs = np.loadtxt(out_bvec).T  # (N, 3)
     # Expected for LPI (det < 0):
-    # R_fsl = diag([1, -1, -1])  (x NOT flipped in FSL bvec file for det < 0 
+    # R_fsl = diag([1, -1, -1])  (x NOT flipped in FSL bvec file for det < 0
     # if we follow the MRtrix importing convention correctly)
     # Let's check our actual implementation logic:
     # World [1, 0, 0] (Right) -> v_fsl = R_fsl.T * [1, 0, 0] = [1, 0, 0]

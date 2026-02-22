@@ -1,21 +1,22 @@
-
-import logging
-import os
 import numpy as np
+import nibabel as nib
 from nibabel.orientations import aff2axcodes
 from dipy.io import read_bvals_bvecs
 
 from scilpy.io.stateful_image import StatefulImage
+
 
 class StatefulGradient:
     """
     Class to handle diffusion gradients (bvals/bvecs) in a stateful manner,
     synchronized with a StatefulImage.
 
-    Internally, bvecs are stored in RAS mm (World/Scanner space).
-    This ensures that gradients are orientation-invariant in memory.
-    The transformation from FSL (axis-relative) to RAS mm (world-relative)
-    follows the MRtrix convention, accounting for the image affine.
+    Internally, bvecs are stored in a Canonical RAS space (voxel-aligned).
+    This ensures that gradients are orientation-invariant in memory while
+    ignoring any non-orthogonal components (like scanner tilt/rotation)
+    that might be present in the image affine.
+    The transformation from FSL (axis-relative) to Canonical RAS
+    follows the FSL/MRtrix conventions for axis flips and swaps.
     """
 
     def __init__(self, bvals, bvecs, simg, space='fsl', normalize=True,
@@ -32,7 +33,7 @@ class StatefulGradient:
         space: str
             The coordinate space of the input bvecs.
             'fsl': Gradients are defined relative to the image axes.
-            'rasmm': Gradients are already in RAS mm (World space).
+            'ras': Gradients are in RAS space (Canonical RAS).
         normalize: bool
             If True, bvecs will be normalized to unit length.
         use_original_affine: bool
@@ -57,11 +58,11 @@ class StatefulGradient:
 
         if space.lower() == 'fsl':
             affine = simg.original_affine if use_original_affine else simg.affine
-            self._bvecs = self._axes_to_rasmm(bvecs, affine)
-        elif space.lower() == 'rasmm':
+            self._bvecs = self._axes_to_ras(bvecs, affine)
+        elif space.lower() == 'ras':
             self._bvecs = bvecs
         else:
-            raise ValueError("Space must be 'fsl' or 'rasmm'.")
+            raise ValueError("Space must be 'fsl' or 'ras'.")
 
     @property
     def bvals(self):
@@ -69,20 +70,20 @@ class StatefulGradient:
 
     @property
     def bvecs(self):
-        """Returns bvecs in the internal RAS mm space."""
+        """Returns bvecs in the internal Canonical RAS space (voxel-aligned)."""
         return self._bvecs
 
     @property
     def simg(self):
         return self._simg
 
-    def to_rasmm(self):
-        """Alias for clarity, returning internal World-space bvecs."""
+    def to_ras(self):
+        """Alias for clarity, returning internal reoriented bvecs."""
         return self._bvecs
 
     def get_bvecs_reoriented(self, reference_image_or_affine):
         """
-        Projects the internal RAS mm bvecs back into a specific axis space.
+        Projects the internal Canonical RAS bvecs back into a specific axis space.
 
         Parameters
         ----------
@@ -102,33 +103,34 @@ class StatefulGradient:
             raise TypeError("Reference must be a StatefulImage, Nifti1Image, "
                             "or a 4x4 affine.")
 
-        return self._rasmm_to_axes(self._bvecs, affine)
+        return self._ras_to_axes(self._bvecs, affine)
 
     def _get_fsl_rotation(self, affine):
         """
-        Computes the rotation matrix R used by FSL to relate axis-space
-        to world-space.
+        Computes the permutation/flip matrix R used by FSL to relate axis-space
+        to a canonical RAS space. Only handles flips and swaps (no rotation).
         """
-        R = affine[:3, :3].copy()
-        norms = np.linalg.norm(R, axis=0)
-        R /= norms
+        ornt = nib.orientations.io_orientation(affine)
+        R = np.zeros((3, 3))
+        for i, (col, flip) in enumerate(ornt):
+            R[int(col), i] = flip
 
         # FSL's implicit flip for left-handed coordinate systems:
         # If the determinant is negative, the first axis (x) is flipped
         # to maintain a right-handed system in the bvecs.
         if np.linalg.det(R) < 0:
             R[:, 0] *= -1
-        
+
         return R
 
-    def _axes_to_rasmm(self, bvecs, affine):
-        """Transforms bvecs from Axis space (FSL) to RAS mm (World)."""
+    def _axes_to_ras(self, bvecs, affine):
+        """Transforms bvecs from Axis space (FSL) to Canonical RAS."""
         R = self._get_fsl_rotation(affine)
         # v_world = R @ v_fsl
         return (R @ bvecs.T).T
 
-    def _rasmm_to_axes(self, bvecs, affine):
-        """Transforms bvecs from RAS mm (World) to Axis space (FSL)."""
+    def _ras_to_axes(self, bvecs, affine):
+        """Transforms bvecs from Canonical RAS to Axis space (FSL)."""
         R = self._get_fsl_rotation(affine)
         # v_fsl = inv(R) @ v_world. Since R is orthogonal, inv(R) = R.T
         return (R.T @ bvecs.T).T
@@ -143,10 +145,10 @@ class StatefulGradient:
         if bvals is None:
             # Create dummy bvals if not provided
             bvals = np.zeros(len(bvecs))
-        
-        # When loading from disk, bvecs are assumed relative to the 
+
+        # When loading from disk, bvecs are assumed relative to the
         # ORIGINAL on-disk orientation of the image.
-        return cls(bvals, bvecs, simg, space='fsl', normalize=normalize, 
+        return cls(bvals, bvecs, simg, space='fsl', normalize=normalize,
                    use_original_affine=True)
 
     def save(self, bval_path, bvec_path):

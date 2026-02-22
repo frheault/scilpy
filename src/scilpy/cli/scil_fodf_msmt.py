@@ -26,9 +26,7 @@ from dipy.reconst.mcsd import MultiShellDeconvModel, multi_shell_fiber_response
 import nibabel as nib
 import numpy as np
 
-from scilpy.gradients.bvec_bval_tools import (check_b0_threshold,
-                                              normalize_bvecs,
-                                              is_normalized_bvecs)
+from scilpy.gradients.bvec_bval_tools import check_b0_threshold
 from scilpy.io.image import get_data_as_mask
 from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
@@ -201,7 +199,7 @@ def main():
                                     is_output_legacy=is_legacy,
                                     nbr_processes=args.nbr_processes)
         res_img = nib.Nifti1Image(wm_coeff.astype(np.float32),
-                                 vol.affine)
+                                  vol.affine)
         StatefulImage.create_from(res_img, vol).save(args.wm_out_fODF)
 
     if args.gm_out_fODF:
@@ -214,7 +212,7 @@ def main():
                                     is_output_legacy=is_legacy,
                                     nbr_processes=args.nbr_processes)
         res_img = nib.Nifti1Image(gm_coeff.astype(np.float32),
-                                 vol.affine)
+                                  vol.affine)
         StatefulImage.create_from(res_img, vol).save(args.gm_out_fODF)
 
     if args.csf_out_fODF:
@@ -227,19 +225,19 @@ def main():
                                      is_output_legacy=is_legacy,
                                      nbr_processes=args.nbr_processes)
         res_img = nib.Nifti1Image(csf_coeff.astype(np.float32),
-                                 vol.affine)
+                                  vol.affine)
         StatefulImage.create_from(res_img, vol).save(args.csf_out_fODF)
 
     if args.vf:
         res_img = nib.Nifti1Image(vf.astype(np.float32),
-                                 vol.affine)
+                                  vol.affine)
         StatefulImage.create_from(res_img, vol).save(args.vf)
 
     if args.vf_rgb:
         vf_rgb = vf / np.max(vf) * 255
         vf_rgb = np.clip(vf_rgb, 0, 255)
         res_img = nib.Nifti1Image(vf_rgb.astype(np.uint8),
-                                 vol.affine)
+                                  vol.affine)
         StatefulImage.create_from(res_img, vol).save(args.vf_rgb)
 
 

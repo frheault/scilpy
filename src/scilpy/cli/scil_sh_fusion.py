@@ -72,7 +72,7 @@ def main():
                               out_coeffs, im_dat)
 
     res_img = nib.Nifti1Image(out_coeffs, first_im.affine,
-                             header=first_im.header)
+                              header=first_im.header)
     StatefulImage.create_from(res_img, first_im).save(args.out_sh)
 
 

@@ -41,6 +41,14 @@ class StatefulImage(nib.Nifti1Image):
         return self._original_axcodes
 
     @property
+    def original_dimensions(self):
+        return self._original_dimensions
+
+    @property
+    def original_voxel_sizes(self):
+        return self._original_voxel_sizes
+
+    @property
     def axcodes(self):
         return nib.orientations.aff2axcodes(self.affine)
 
@@ -78,6 +86,48 @@ class StatefulImage(nib.Nifti1Image):
             simg.reorient(to_orientation)
 
         return simg
+
+    @classmethod
+    def convert_to_simg(cls, obj, to_orientation="RAS"):
+        """
+        Convert a nibabel image or a filename to a StatefulImage.
+
+        Parameters
+        ----------
+        obj : str | nibabel image | StatefulImage
+            The object to convert.
+        to_orientation : str or tuple, optional
+            The target orientation for the in-memory data. Default is "RAS".
+
+        Returns
+        -------
+        StatefulImage
+            A StatefulImage instance.
+        """
+        if isinstance(obj, cls):
+            if to_orientation:
+                obj.reorient(to_orientation)
+            return obj
+
+        if isinstance(obj, str):
+            return cls.load(obj, to_orientation=to_orientation)
+
+        if isinstance(obj, nib.spatialimages.SpatialImage):
+            original_affine = obj.affine.copy()
+            original_axcodes = nib.orientations.aff2axcodes(obj.affine)
+            original_dims = obj.header.get_data_shape()
+            original_voxel_sizes = obj.header.get_zooms()
+            simg = cls(obj.dataobj, obj.affine, obj.header,
+                       original_affine=original_affine,
+                       original_dimensions=original_dims,
+                       original_voxel_sizes=original_voxel_sizes,
+                       original_axcodes=original_axcodes)
+            if to_orientation:
+                simg.reorient(to_orientation)
+            return simg
+
+        raise TypeError("Object must be a filename, a nibabel image or "
+                        "a StatefulImage.")
 
     @classmethod
     def create_from(cls, nib_img, reference_simg):

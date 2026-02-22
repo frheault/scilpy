@@ -2,17 +2,18 @@
 # -*- coding: utf-8 -*-
 """
 Detect sign flips and/or axes swaps in the gradients table from a fiber
-coherence index [1]. The script takes as input the principal direction(s)
-at each voxel, the b-vectors and the fractional anisotropy map and outputs
-a corrected b-vectors file.
+coherence index [1]. The script can work in two modes:
 
-A typical pipeline could be:
->>> scil_dti_metrics dwi.nii.gz bval bvec --not_all --fa fa.nii.gz
-    --evecs peaks.nii.gz
->>> scil_gradients_validate_correct bvec peaks_v1.nii.gz fa.nii.gz bvec_corr
+1) Peaks mode: Takes as input the principal direction(s) at each voxel,
+   the b-vectors and the fractional anisotropy map.
+   >>> scil_gradients_validate_correct bvec peaks_v1.nii.gz fa.nii.gz bvec_corr
 
-Note that peaks_v1.nii.gz is the file containing the direction associated
-to the highest eigenvalue at each voxel.
+2) DWI mode: Takes as input the DWI, the b-values and the b-vectors.
+   A quick DTI fit is performed internally on a central sub-volume.
+   >>> scil_gradients_validate_correct dwi.nii.gz bval bvec bvec_corr
+
+Note that in peaks mode, peaks_v1.nii.gz is the file containing the
+direction associated to the highest eigenvalue at each voxel.
 
 It is also possible to use a file containing multiple principal directions per
 voxel, given that they are sorted by decreasing amplitude. In that case, the
@@ -32,6 +33,8 @@ Reference:
 import argparse
 import logging
 
+from dipy.core.gradients import gradient_table
+from dipy.reconst.dti import TensorModel, fractional_anisotropy
 import numpy as np
 
 from scilpy.io.gradients import read_bvals_bvecs
@@ -50,14 +53,18 @@ def _build_arg_parser():
                                 formatter_class=argparse.RawTextHelpFormatter,
                                 epilog=version_string)
 
-    p.add_argument('in_bvec',
-                   help='Path to bvec file.')
-    p.add_argument('in_peaks',
-                   help='Path to peaks file.')
-    p.add_argument('in_FA',
-                   help='Path to the fractional anisotropy file.')
     p.add_argument('out_bvec',
                    help='Path to corrected bvec file (FSL format).')
+
+    dwi_group = p.add_argument_group('DWI Mode (performs internal DTI fit)')
+    dwi_group.add_argument('--dwi', help='Path to DWI nifti file.')
+    dwi_group.add_argument('--bval', help='Path to bval file.')
+    dwi_group.add_argument('--bvec', help='Path to bvec file.')
+
+    peaks_group = p.add_argument_group('Peaks Mode')
+    peaks_group.add_argument('--peaks', help='Path to peaks file.')
+    peaks_group.add_argument('--fa', help='Path to the FA file.')
+    peaks_group.add_argument('--in_bvec', help='Path to bvec file.')
 
     p.add_argument('--mask',
                    help='Path to an optional mask. If set, FA and Peaks will '
@@ -79,38 +86,88 @@ def main():
     args = parser.parse_args()
     logging.getLogger().setLevel(logging.getLevelName(args.verbose))
 
-    assert_inputs_exist(parser, [args.in_bvec, args.in_peaks, args.in_FA],
-                        optional=args.mask)
-    assert_outputs_exist(parser, args, args.out_bvec)
-    assert_headers_compatible(parser, [args.in_peaks, args.in_FA],
-                              optional=args.mask)
+    # Mode detection and validation
+    if args.dwi:
+        if not args.bval or not args.bvec:
+            parser.error('--dwi mode requires --bval and --bvec.')
+        if args.peaks or args.fa or args.in_bvec:
+            parser.error('--dwi mode is incompatible with --peaks/--fa/--in_bvec.')
 
-    peaks_simg = StatefulImage.load(args.in_peaks)
-    fa_simg = StatefulImage.load(args.in_FA)
+        logging.info('DWI mode selected.')
+        assert_inputs_exist(parser, [args.dwi, args.bval, args.bvec],
+                            optional=args.mask)
+        assert_outputs_exist(parser, args, args.out_bvec)
 
-    # Load bvecs relative to the peaks image (which is standard RAS in memory)
-    sgrad = read_bvals_bvecs(None, args.in_bvec, simg=peaks_simg)
+        dwi_simg = StatefulImage.load(args.dwi)
+        sgrad = read_bvals_bvecs(args.bval, args.bvec, simg=dwi_simg)
+        print(sgrad.bvecs[0:3, :])
+        data = dwi_simg.get_fdata().astype(np.float32)
+        if len(data.shape) != 4:
+            parser.error('Input data must be DWI (4D) in DWI mode.')
 
-    fa = fa_simg.get_fdata()
-    peaks = peaks_simg.get_fdata()
+        # Quick DTI fit internally in a 1/4 dimensions of the nifti cube
+        # around the center
+        logging.info('Performing quick DTI fit on central sub-volume...')
+        gtab = gradient_table(sgrad.bvals, bvecs=sgrad.bvecs)
+        tenmodel = TensorModel(gtab, fit_method='WLS',
+                               min_signal=np.min(data[data > 0]))
 
-    if peaks.shape[-1] > 3:
-        logging.info('More than one principal direction per voxel was given.')
-        peaks = peaks[..., 0:3]
-        logging.info('The first peak is assumed to be the biggest.')
+        mask = np.zeros(data.shape[:3], dtype=bool)
+        interval_i = slice(data.shape[0] // 2 - data.shape[0] // 2,
+                           data.shape[0] // 2 + data.shape[0] // 2)
+        interval_j = slice(data.shape[1] // 2 - data.shape[1] // 2,
+                           data.shape[1] // 2 + data.shape[1] // 2)
+        interval_k = slice(data.shape[2] // 2 - data.shape[2] // 2,
+                           data.shape[2] // 2 + data.shape[2] // 2)
+        mask[interval_i, interval_j, interval_k] = 1
 
-    # convert peaks to a volume of shape (H, W, D, N, 3)
-    if args.column_wise:
-        peaks = np.reshape(peaks, peaks.shape[:3] + (3, -1))
-        peaks = np.transpose(peaks, axes=(0, 1, 2, 4, 3))
+        tenfit = tenmodel.fit(data, mask=mask)
+        fa = fractional_anisotropy(tenfit.evals)
+        peaks = tenfit.evecs.astype(np.float32)[..., 0]
+        peaks_simg = dwi_simg  # Reference image for saving
+
+    elif args.peaks:
+        if not args.fa or not args.in_bvec:
+            parser.error('--peaks mode requires --fa and --in_bvec.')
+
+        logging.info('Peaks mode selected.')
+        assert_inputs_exist(parser, [args.peaks, args.fa, args.in_bvec],
+                            optional=args.mask)
+        assert_outputs_exist(parser, args, args.out_bvec)
+        assert_headers_compatible(parser, [args.peaks, args.fa],
+                                  optional=args.mask)
+
+        peaks_simg = StatefulImage.load(args.peaks)
+        fa_simg = StatefulImage.load(args.fa)
+
+        # Load bvecs relative to the peaks image
+        sgrad = read_bvals_bvecs(None, args.in_bvec, simg=peaks_simg)
+
+        fa = fa_simg.get_fdata()
+        peaks = peaks_simg.get_fdata()
+
+        if peaks.shape[-1] > 3:
+            logging.info('More than one principal direction per voxel was given.')
+            peaks = peaks[..., 0:3]
+            logging.info('The first peak is assumed to be the biggest.')
+
+        # convert peaks to a volume of shape (H, W, D, N, 3)
+        if args.column_wise:
+            peaks = np.reshape(peaks, peaks.shape[:3] + (3, -1))
+            peaks = np.transpose(peaks, axes=(0, 1, 2, 4, 3))
+        else:
+            peaks = np.reshape(peaks, peaks.shape[:3] + (-1, 3))
+
+        peaks = np.squeeze(peaks)
+
     else:
-        peaks = np.reshape(peaks, peaks.shape[:3] + (-1, 3))
+        parser.error('Either --dwi or --peaks mode must be selected.')
 
-    peaks = np.squeeze(peaks)
     if args.mask:
-        mask = get_data_as_mask(StatefulImage.load(args.mask), ref_shape=peaks.shape)
-        fa[np.logical_not(mask)] = 0
-        peaks[np.logical_not(mask)] = 0
+        mask_data = get_data_as_mask(StatefulImage.load(args.mask),
+                                     ref_shape=peaks.shape[:3])
+        fa[np.logical_not(mask_data)] = 0
+        peaks[np.logical_not(mask_data)] = 0
 
     peaks[fa < args.fa_threshold] = 0
     coherence, transform = compute_coherence_table_for_transforms(peaks, fa)

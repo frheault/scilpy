@@ -64,7 +64,7 @@ from scilpy.tractograms.streamline_operations import (
     get_streamlines_as_linspaces, get_angles)
 from scilpy.viz.color import (
     get_lookup_table, prepare_colorbar_figure, ambiant_occlusion,
-    generate_local_coloring)
+    generate_local_coloring, generate_endpoints_coloring)
 from scilpy.version import version_string
 
 
@@ -108,6 +108,8 @@ def _build_arg_parser():
                     help="Color streamlines according to the angle between "
                          "each segment (in degree). \nAngles at first and "
                          "last points are set to 0.")
+    p1.add_argument('--endpoints_coloring', action='store_true',
+                    help="Color only the endpoints of the streamlines according to their ")
     p1.add_argument('--local_angle', action='store_true',
                     help="Color streamlines according to the angle between "
                          "each segment (in degree). \nAngles at first and "
@@ -218,12 +220,14 @@ def main():
         data = np.hstack(data)
     elif args.local_orientation:
         data = generate_local_coloring(sft)
+    elif args.endpoints_coloring:
+        data = generate_endpoints_coloring(sft)
     else:  # args.local_angle:
         data = get_angles(sft, add_zeros=True)
         data = np.hstack(data)
 
     # Processing
-    if not args.local_orientation:
+    if not args.local_orientation and not args.endpoints_coloring:
         sft, lbound, ubound = add_data_as_color_dpp(
             sft, cmap, data, args.clip_outliers, args.min_range, args.max_range,
             args.min_cmap, args.max_cmap, args.log, LUT)

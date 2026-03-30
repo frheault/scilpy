@@ -19,7 +19,7 @@ def test_random_uniform_on_sphere():
     min_expected_angle = 1.0
     smallests = []
     for i in range(10):
-        angles = np.rad2deg(np.arccos(np.dot(bvecs[i, :], bvecs.T)))
+        angles = np.rad2deg(np.arccos(np.clip(np.dot(bvecs[i, :], bvecs.T), -1, 1)))
         # Smallest, except 0 (with itself). Sometimes this is nan.
         smallests.append(np.nanmin(angles[angles > 1e-5]))
     assert np.all(np.asarray(smallests) > min_expected_angle)

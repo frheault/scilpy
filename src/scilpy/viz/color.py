@@ -280,57 +280,65 @@ def prepare_colorbar_figure(cmap, lbound, ubound, nb_values=255, nb_ticks=10,
     return fig
 
 
-def ambiant_occlusion(sft, colors, factor=4):
+def ambiant_occlusion(sft, colors, factor=2.0, radius=1.0):
     """
-    Apply ambiant occlusion to a set of colors based on point density
-    around each point.
-
-    Parameters
-    ----------
-    sft : StatefulTractogram
-        The streamlines.
-    colors : np.ndarray
-        The original colors to modify.
+    Applies an ambient occlusion-like effect to streamlines based on density.
+    
+    Parameters:
+    -----------
+    sft : Statefull Tractogram
+        The tractogram object containing streamline data.
+    colors : ndarray
+        RGB colors for each point in the streamlines (N, 3).
     factor : float
-        The factor of occlusion (how density will affect the saturation).
-
-    Returns
-    -------
-    np.ndarray
-        The modified colors.
+        Controls the intensity of the shading. Higher = darker crowded areas.
+    radius : float
+        The search radius for the KDTree to find neighboring points.
     """
-
     pts = sft.streamlines._data
 
+    # Handle Color Input & Normalization
     if np.min(colors) < 0:
-        logging.warning("Minimal color in 'color' was less than 0 ({}). Are "
-                        "you sure that this dpp contains colors?"
-                        .format(np.min(colors)))
-    if np.max(colors) > 1:
-        # Normalizing
-        logging.debug("'colors' contained data between 0 and {}, normalizing."
-                      .format(np.max(colors)))
-        colors = colors / np.max(colors)
+        logging.warning("Minimal color in 'colors' was less than 0 ({}). "
+                        "Check your data source.".format(np.min(colors)))
+        
+    max_c = np.max(colors)
+    if max_c > 1:
+        logging.debug("'colors' contained data up to {}, normalizing to [0, 1]."
+                      .format(max_c))
+        colors = colors / max_c
 
+    # Convert RGB to HSV
     hsv = mcolors.rgb_to_hsv(colors)
 
+    # Density Estimation using KDTree
     tree = KDTree(pts)
-    nb_neighbor = np.array(tree.query_ball_point(pts, 1,
-                                                 return_length=True),
+    # Count how many points are within 'radius' of each point
+    nb_neighbor = np.array(tree.query_ball_point(pts, radius, return_length=True),
                            dtype=float)
-    nb_neighbor /= np.max(nb_neighbor)
+    
+    # Normalize density to [0, 1]
+    max_neighbors = np.max(nb_neighbor)
+    if max_neighbors > 0:
+        nb_neighbor /= max_neighbors
+
+    # Calculate Occlusion Weight
+    # High density (many neighbors) -> low occlusion_w (closer to 0)
+    # Low density (few neighbors) -> high occlusion_w (closer to 1)
     occlusion_w = np.exp(-factor * nb_neighbor)
 
-    hsv[:, 1] = np.clip(hsv[:, 1], max(1 / factor, np.min(hsv[:, 1])),
-                        min(1 - 1 / factor, np.max(hsv[:, 1])))
-    hsv[:, 1] -= (occlusion_w / factor)
+    # Modify Saturation (S)
+    # We reduce saturation in dense areas (where occlusion_w is low).
+    s_reduction = (1.0 - occlusion_w) / (factor + 1e-6)
+    hsv[:, 1] = np.clip(hsv[:, 1] - s_reduction, 0, 1)
 
-    occlusion_w = np.clip(occlusion_w, 0.5 + (1 / factor), 1)
-    hsv[:, 2] *= occlusion_w
-    hsv[:, 0:2] = np.clip(hsv[:, 0:2], 0, 1)
-    hsv[:, 2] = np.clip(hsv[:, 2], 0, 255)
+    # Modify Value/Brightness (V)
+    # We clip the multiplier so the brightness never drops below 20-30%.
+    brightness_mask = np.clip(occlusion_w, 0.2, 1.0)
+    hsv[:, 2] *= brightness_mask
 
-    return mcolors.hsv_to_rgb(hsv)
+    hsv = np.clip(hsv, 0, 1)
+    return mcolors.hsv_to_rgb(hsv) * 255.0
 
 
 def generate_local_coloring(sft):
@@ -360,6 +368,36 @@ def generate_local_coloring(sft):
     # Flatten the list of segments
     orientations = np.asarray([o for d in diff for o in d])
     # Turn the segments into colors
+    color = colormap.orient2rgb(orientations)
+
+    return color
+
+
+def generate_endpoints_coloring(sft):
+    """
+    Generate a coloring based on the endpoints orientation of the streamlines.
+
+    Parameters
+    ----------
+    sft : StatefulTractogram / ArraySequence / List
+        The tractogram / streamlines to generate the coloring from.
+
+    Returns
+    -------
+    np.ndarray
+        The generated colors.
+    """
+    if isinstance(sft, StatefulTractogram):
+        streamlines = sft.streamlines
+    else:
+        streamlines = sft
+
+    # Compute segment orientation
+    diff = [s[0] - s[-1] for s in streamlines]
+
+    # Flatten the list of segments
+    orientations = np.repeat(diff, [len(s) for s in streamlines], axis=0)
+    # Turn the orientation into colors
     color = colormap.orient2rgb(orientations)
 
     return color

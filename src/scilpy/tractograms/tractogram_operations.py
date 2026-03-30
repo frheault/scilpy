@@ -774,7 +774,8 @@ def upsample_tractogram(sft, nb, point_wise_std=None, tube_radius=None,
             # along the streamline (simply to avoid sharp changes in the
             # noise factor).
             x = np.arange(len(noise))
-            poly_coeffs = np.polyfit(x, noise, 3)
+            deg = min(3, len(noise) - 1)
+            poly_coeffs = np.polyfit(x, noise, deg)
             polynomial = Polynomial(poly_coeffs[::-1])
             noise_factor = polynomial(x)
 

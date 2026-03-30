@@ -773,7 +773,10 @@ def merge_metrics(*arrays, beta=1.0):
     array_product = np.prod(masked_arrays, axis=0)
 
     # Calculate the geometric mean for valid data
-    geometric_mean = np.power(array_product, 1 / len(arrays))
+    # We ignore the warning as negative products will result in NaN,
+    # which is handled later.
+    with np.errstate(invalid='ignore'):
+        geometric_mean = np.power(array_product, 1 / len(arrays))
     boosted_mean = geometric_mean ** beta
 
     return ma.filled(boosted_mean, fill_value=np.nan)

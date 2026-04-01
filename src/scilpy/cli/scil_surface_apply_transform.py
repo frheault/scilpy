@@ -72,7 +72,7 @@ def _build_arg_parser():
 
     return p
 
-import numpy as np
+
 def main():
     parser = _build_arg_parser()
     args = parser.parse_args()

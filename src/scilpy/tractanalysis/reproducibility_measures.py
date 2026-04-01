@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from copy import deepcopy, copy
+from copy import copy
 import logging
 import warnings
 
@@ -19,8 +19,7 @@ from sklearn.neighbors import KDTree
 from tqdm import tqdm
 
 from scilpy.tractanalysis.streamlines_metrics import compute_tract_counts_map
-from scilpy.tractanalysis.todi import TrackOrientationDensityImaging, \
-    get_sh_from_todi
+from scilpy.tractanalysis.todi import get_sh_from_todi
 from scilpy.tractograms.streamline_operations import generate_matched_points
 from scilpy.tractograms.tractogram_operations import (difference_robust,
                                                       intersection_robust,
@@ -468,13 +467,10 @@ def _compute_difference_for_voxel(chunk_indices,
     results: list
         List of the computed differences in the same order as the input voxels.
     """
-    global sft_1, sft_2, matched_points_1, matched_points_2, tree_1, tree_2, \
-        sh_data_1, sh_data_2
     results = []
     for vox_ind in chunk_indices:
         vox_ind = tuple(vox_ind)
 
-        global B
         has_data = sh_data_1[vox_ind].any() and sh_data_2[vox_ind].any()
         if has_data:
             sf_1 = np.dot(sh_data_1[vox_ind], B)
@@ -581,8 +577,8 @@ def _compare_tractogram_wrapper(mask, nbr_cpu, skip_streamlines_distance):
             chunk = futures[future]
             try:
                 results = future.result()
-            except Exception as exc:
-                print(f'Generated an exception: {exc}')
+            except Exception:
+                pass
             else:
                 results = np.array(results)
                 diff_data[tuple(chunk.T)] = results[:, 0]

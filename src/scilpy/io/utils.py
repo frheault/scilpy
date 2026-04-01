@@ -903,7 +903,7 @@ def assert_output_dirs_exist_and_empty(parser, args, required,
                         elif os.path.isdir(file_path):
                             shutil.rmtree(file_path)
                     except Exception as e:
-                        print(e)
+                        logging.warning(e)
 
     if isinstance(required, str):
         required = [required]

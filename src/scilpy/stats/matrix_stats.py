@@ -157,6 +157,18 @@ def omega_sigma(matrix):
            Brain Connectivity. 1 (0038): 367-75.  PMC 3604768. PMID 22432451.
            doi:10.1089/brain.2011.0038.
     """
+    def _mean_finite_path_length(distance_matrix):
+        # bct.distance_wei() sets unreachable pairs to inf (and the
+        # diagonal to 0). Averaging those in directly would silently turn
+        # path_length into inf for any disconnected graph, which then
+        # propagates into omega/sigma as NaN. Average only the finite,
+        # off-diagonal distances (i.e. over reachable node pairs) instead.
+        off_diag = ~np.eye(distance_matrix.shape[0], dtype=bool)
+        finite = np.isfinite(distance_matrix) & off_diag
+        if not np.any(finite):
+            return np.nan
+        return float(np.mean(distance_matrix[finite]))
+
     transitivity_rand_list = []
     transitivity_latt_list = []
     path_length_rand_list = []
@@ -169,10 +181,10 @@ def omega_sigma(matrix):
         transitivity_rand_list.append(bct.transitivity_wu(random))
         transitivity_latt_list.append(bct.transitivity_wu(lattice))
         path_length_rand_list.append(
-            float(np.average(bct.distance_wei(random)[0])))
+            _mean_finite_path_length(bct.distance_wei(random)[0]))
 
     transitivity = bct.transitivity_wu(matrix)
-    path_length = float(np.average(bct.distance_wei(matrix)[0]))
+    path_length = _mean_finite_path_length(bct.distance_wei(matrix)[0])
     transitivity_rand = np.mean(transitivity_rand_list)
     transitivity_latt = np.mean(transitivity_latt_list)
     path_length_rand = np.mean(path_length_rand_list)

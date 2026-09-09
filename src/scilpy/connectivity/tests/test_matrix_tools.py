@@ -118,6 +118,79 @@ def test_evaluate_graph_measures():
         pass
 
 
+def test_evaluate_graph_measures_mismatched_edges():
+    # conn_matrix has an edge (0, 2) with no matching length in len_matrix
+    # (len_matrix[0, 2] == 0), simulating inconsistent inputs. Edges present
+    # in only one of the two matrices must be excluded from length-based
+    # cost models ('length_over_weight', 'anatomical_only') and from
+    # wiring_cost, instead of being silently treated as valid connections
+    # with a length of 0.
+    conn_matrix = np.asarray([
+        [0, 10, 20, 0, 5],
+        [10, 0, 15, 30, 0],
+        [20, 15, 0, 25, 10],
+        [0, 30, 25, 0, 12],
+        [5, 0, 10, 12, 0]
+    ], dtype=float)
+    len_matrix = np.asarray([
+        [0, 35, 0, 0, 20],
+        [35, 0, 40, 60, 0],
+        [0, 40, 0, 55, 30],
+        [0, 60, 55, 0, 25],
+        [20, 0, 30, 25, 0]
+    ], dtype=float)
+
+    N = len(conn_matrix)
+    triu_idx = np.triu_indices(N, k=1)
+    w_triu = conn_matrix[triu_idx] / np.max(conn_matrix)
+    len_triu = len_matrix[triu_idx]
+    valid = (w_triu > 0) & (len_triu > 0)
+    expected_wiring_cost = (np.sum(w_triu[valid] * len_triu[valid]) /
+                            np.sum(w_triu[valid]))
+    # The naive (buggy) computation that includes the mismatched edge with
+    # length 0 would deflate the result - make sure the two differ, so this
+    # test would actually fail without the fix.
+    naive_wiring_cost = np.sum(w_triu * len_triu) / np.sum(w_triu)
+    assert not np.isclose(expected_wiring_cost, naive_wiring_cost)
+
+    res = evaluate_graph_measures(conn_matrix, len_matrix,
+                                  avg_node_wise=True, small_world=False,
+                                  cost_model='anatomical_only')
+    assert np.isclose(res['wiring_cost'], expected_wiring_cost)
+
+
+def test_evaluate_graph_measures_wiring_cost_always_present():
+    # 'wiring_cost' must always be in the output whenever a len_matrix is
+    # given, even when it cannot be computed (here: len_matrix has no
+    # length data at all). Otherwise, in a --append_json batch over many
+    # subjects, a key that is only sometimes present either misaligns the
+    # per-subject lists (if the "good" subject comes first) or raises a
+    # KeyError (if the "bad" subject comes first).
+    conn_matrix = np.asarray([[0, 10, 20],
+                              [10, 0, 15],
+                              [20, 15, 0]], dtype=float)
+    len_matrix_empty = np.zeros((3, 3))
+
+    res = evaluate_graph_measures(conn_matrix, len_matrix_empty,
+                                  avg_node_wise=True, small_world=False)
+    assert 'wiring_cost' in res
+    assert res['wiring_cost'] == -1.0
+
+
+def test_evaluate_graph_measures_empty_conn_matrix_raises():
+    # An all-zero connectivity matrix (e.g. a failed subject, or one fully
+    # zeroed out by --filtering_mask) must raise a clear, actionable error
+    # instead of crashing deep inside bct.modularity_louvain_und with a
+    # cryptic "Modularity Infinite Loop Style B" BCTParamError.
+    empty_conn_matrix = np.zeros((5, 5))
+    try:
+        evaluate_graph_measures(empty_conn_matrix, None, avg_node_wise=True,
+                                small_world=False)
+        assert False, "Should have raised ValueError"
+    except ValueError:
+        pass
+
+
 def test_normalize_matrix_from_values():
     pass
 

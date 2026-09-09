@@ -269,6 +269,12 @@ def evaluate_graph_measures(conn_matrix, len_matrix=None,
 
     off_diag = ~np.eye(N, dtype=bool)
     conn_edges = (conn_matrix != 0) & off_diag
+    if not np.any(conn_edges):
+        raise ValueError(
+            "Connectivity matrix has no edges (all entries are zero once "
+            "the diagonal is removed); graph measures cannot be computed "
+            "on an empty network. This can happen with a failed subject "
+            "or an over-restrictive --filtering_mask.")
     n_possible_edges = N * (N - 1)
     density = (np.count_nonzero(conn_edges) / n_possible_edges
                if n_possible_edges else 0.0)
@@ -322,10 +328,14 @@ def evaluate_graph_measures(conn_matrix, len_matrix=None,
     elif cost_model == 'anatomical_only':
         len_mat = len_matrix.copy().astype(float)
         np.fill_diagonal(len_mat, 0)
-        L_cost = len_mat.copy()
+        # Only keep edges present in both matrices, consistent with
+        # 'length_over_weight' and with the mismatch warning above.
+        mask = (norm_conn_matrix > 0) & (len_mat > 0)
+
+        L_cost = np.zeros_like(len_mat)
+        L_cost[mask] = len_mat[mask]
 
         W_eff = np.zeros_like(len_mat)
-        mask = len_mat > 0
         if np.any(mask):
             W_eff[mask] = 1.0 / len_mat[mask]
             max_eff = np.max(W_eff)
@@ -376,14 +386,26 @@ def evaluate_graph_measures(conn_matrix, len_matrix=None,
         gtm_dict['anatomical_edge_count'] = func_cast(anat_path_tuple[1])
 
         # Wiring cost (Bullmore & Sporns 2012): connection-strength-weighted
-        # mean physical length of the network's edges (in mm).
+        # mean physical length of the network's edges (in mm). Restricted to
+        # edges present in both matrices, otherwise a weighted edge with no
+        # matching length (len == 0) would contribute 0 to the numerator
+        # while still counting its full weight in the denominator, silently
+        # deflating the result.
+        # Always set the key (using the -1.0 sentinel when it cannot be
+        # computed) rather than omitting it: with --append_json, a key
+        # that is only sometimes present across a batch of subjects either
+        # silently misaligns the resulting per-subject lists, or raises a
+        # KeyError, depending on which subject is processed first.
         triu_idx = np.triu_indices(N, k=1)
         len_triu = len_mat[triu_idx]
         w_triu = norm_conn_matrix[triu_idx]
-        sum_w = np.sum(w_triu)
+        valid_edges = (w_triu > 0) & (len_triu > 0)
+        sum_w = np.sum(w_triu[valid_edges])
         if sum_w > 0:
             gtm_dict['wiring_cost'] = float(
-                np.sum(w_triu * len_triu) / sum_w)
+                np.sum(w_triu[valid_edges] * len_triu[valid_edges]) / sum_w)
+        else:
+            gtm_dict['wiring_cost'] = -1.0
 
     return gtm_dict
 

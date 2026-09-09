@@ -2,36 +2,58 @@
 # -*- coding: utf-8 -*-
 """
 Evaluate graph theory measures from structural connectivity matrices from
-outputs of diffusion MRI tractography. A length-weighted matrix is
-optional but required to extract measures such as: global efficiency,
-local efficiency, betweeness centrality, path length, edge count, and
-small-world omega/sigma. These are not computed if a length matrix is
-not provided. The other computed connectivity measures that do
-not require the length matrix are: modularity, assortativity,
-participation, clustering, nodal_strength, and rich_club.
+outputs of diffusion MRI tractography.
 
-This script evaluates the measures one subject at the time. To generate a
-population dictionary (similarly to other scil_connectivity_* scripts), use
-the --append_json option as well as using the same output filename.
->>> for i in hcp/*/; do scil_connectivity_structural_graph_measures
-    ${i}/sc_prob.npy ${i}/len_prob.npy hcp_prob.json
-    --append_json --avg_node_wise; done
+Computed measures:
+- Centrality & Integration: betweenness_centrality, global_efficiency,
+  local_efficiency, path_length, edge_count.
+- Segregation & Community: modularity, assortativity, participation,
+  clustering, nodal_strength, density, rich_club.
+- Small-worldness: omega and sigma (optional, with --small_world).
+- Anatomical wiring metrics (when --length_matrix is provided):
+  anatomical_path_length, anatomical_edge_count, wiring_cost.
 
-Some measures output one value per node, the default behavior is to list
-them all. To obtain only the average use the --avg_node_wise option.
+Cost models (--cost_model):
+Mapping between connection weights (W) and path costs:
+- inverse_weight (default): Cost = 1 / W. Standard BCT model based purely
+  on communication strength. Does not require --length_matrix.
+- length_over_weight: Cost = Length / W. Hybrid model balancing physical
+  conduction delay and tract strength. Requires --length_matrix.
+- anatomical_only: Cost = Length (mm). Evaluates shortest physical wiring
+  routes. Shorter edges yield higher efficiency. Requires --length_matrix.
 
-For more details about the measures, please refer to
+Usage Examples:
+>>> # Standard BCT communication analysis
+>>> scil_connectivity_structural_graph_measures sc.npy gtm.json \\
+        --avg_node_wise
+
+>>> # Hybrid model (Length / W) with bundle length matrix
+>>> scil_connectivity_structural_graph_measures sc.npy gtm.json \\
+        --length_matrix len.npy --cost_model length_over_weight \\
+        --avg_node_wise
+
+>>> # Group analysis across subjects with --append_json
+>>> for i in hcp/*/; do scil_connectivity_structural_graph_measures \\
+        ${i}/sc.npy hcp_group.json --length_matrix ${i}/len.npy \\
+        --cost_model length_over_weight --append_json --avg_node_wise; done
+
+Some measures output one value per node. By default all values are listed.
+Use --avg_node_wise to return the mean across all nodes instead.
+
+For more details about the measures, please refer to:
 - https://sites.google.com/site/bctnet/
 - https://github.com/aestrivex/bctpy/wiki
 
-This script is under the GNU GPLv3 license, for more detail please refer to
+This script is under the GNU GPLv3 license, for more detail please refer to:
 https://www.gnu.org/licenses/gpl-3.0.en.html
 
 ----------------------------------------------------------------------------
-Reference:
+References:
 [1] Rubinov, Mikail, and Olaf Sporns. "Complex network measures of brain
     connectivity: uses and interpretations." Neuroimage 52.3 (2010):
     1059-1069.
+[2] Bullmore, Ed, and Olaf Sporns. "The economy of brain network
+    organization." Nature Reviews Neuroscience 13.5 (2012): 336-349.
 ----------------------------------------------------------------------------
 """
 
@@ -70,6 +92,18 @@ def _build_arg_parser():
     p.add_argument('--append_json', action='store_true',
                    help='If the file already exists, will append to the '
                         'dictionary.')
+    p.add_argument('--cost_model',
+                   choices=['inverse_weight', 'length_over_weight',
+                            'anatomical_only'],
+                   default='inverse_weight',
+                   help='Model used to calculate shortest path and '
+                        'efficiency:\n'
+                        '  - inverse_weight: Cost = 1 / W (default BCT).\n'
+                        '  - length_over_weight: Cost = Length / W (hybrid '
+                        'cost).\n'
+                        '  - anatomical_only: Cost = Length (mm).\n'
+                        '(length_over_weight and anatomical_only require '
+                        '--length_matrix).')
     p.add_argument('--small_world', action='store_true',
                    help='Compute measure related to small worldness (omega '
                         'and sigma).\n This option is much slower.')
@@ -87,6 +121,11 @@ def main():
     logging.getLogger().setLevel(logging.getLevelName(args.verbose))
 
     assert_inputs_exist(parser, args.in_conn_matrix)
+
+    if args.cost_model in ['length_over_weight', 'anatomical_only'] and \
+            args.length_matrix is None:
+        parser.error(
+            f"--cost_model {args.cost_model} requires --length_matrix.")
 
     if not args.append_json:
         assert_outputs_exist(parser, args, args.out_json)
@@ -115,10 +154,12 @@ def main():
             len_matrix *= mask_matrix
 
     if len_matrix is None:
-        print("Warning: No length-weighted matrix provided. ")
+        logging.info("No length-weighted matrix provided. Anatomical path "
+                     "length measures will be skipped.")
 
     gtm_dict = evaluate_graph_measures(conn_matrix, len_matrix,
-                                       args.avg_node_wise, args.small_world)
+                                       args.avg_node_wise, args.small_world,
+                                       cost_model=args.cost_model)
 
     if os.path.isfile(args.out_json) and args.append_json:
         with open(args.out_json) as json_data:

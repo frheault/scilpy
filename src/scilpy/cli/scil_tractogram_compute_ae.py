@@ -32,7 +32,8 @@ import logging
 import nibabel as nib
 import numpy as np
 
-from scilpy.io.streamlines import (load_tractogram_with_reference, 
+from scilpy.io.stateful_image import StatefulImage
+from scilpy.io.streamlines import (load_tractogram_with_reference,
                                    save_tractogram)
 from scilpy.io.utils import (add_processes_arg, add_verbose_arg, 
                              add_overwrite_arg, assert_headers_compatible, 
@@ -107,7 +108,11 @@ def main():
     cmap = get_lookup_table(args.cmap)
 
     # -- Loading
-    peaks = nib.load(args.in_peaks).get_fdata()
+    # The tractogram is loaded against in_peaks' own original grid (headers
+    # asserted compatible above), so peaks are kept on that grid: only the
+    # direction vectors need to be converted from world to voxel space.
+    peaks_simg = StatefulImage.load(args.in_peaks, is_orientation=True)
+    peaks = peaks_simg.to_voxel_direction(is_peaks=True)
     sft = load_tractogram_with_reference(parser, args, args.in_tractogram)
     logging.info("Loaded data")
 

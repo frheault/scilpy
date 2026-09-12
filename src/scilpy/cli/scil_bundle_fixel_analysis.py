@@ -103,6 +103,7 @@ import numpy as np
 import logging
 from pathlib import Path
 
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
                              assert_headers_compatible, assert_inputs_exist,
                              add_verbose_arg,
@@ -253,9 +254,14 @@ def main():
     ### Load the data
     # The bundles will be loaded in the loop below
     logging.info("Loading data.")
+    # Bundles here are loaded with their own embedded reference (must match
+    # in_peaks' header exactly, see assert_headers_compatible above), so
+    # peaks are kept on their original grid: only the direction vectors
+    # need to be converted from world to voxel space.
     peaks_img = nib.load(args.in_peaks)
-    peaks = peaks_img.get_fdata()
     affine = peaks_img.affine
+    peaks_simg = StatefulImage.load(args.in_peaks, is_orientation=True)
+    peaks = peaks_simg.to_voxel_direction(is_peaks=True)
 
     # Compute NuFo single-fiber from peaks
     if args.single_bundle:

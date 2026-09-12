@@ -27,7 +27,6 @@ References:
 
 """
 
-import nibabel as nib
 import time
 import argparse
 import logging
@@ -37,6 +36,7 @@ from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
                              assert_outputs_exist, validate_nbr_processes,
                              assert_headers_compatible)
 from scilpy.io.image import get_data_as_mask
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.reconst.bingham import bingham_fit_sh
 from scilpy.version import version_string
 
@@ -86,10 +86,15 @@ def main():
     assert_outputs_exist(parser, args, args.out_bingham)
     assert_headers_compatible(parser, args.in_sh, args.mask)
 
-    sh_im = nib.load(args.in_sh)
-    data = sh_im.get_fdata()
-    mask = get_data_as_mask(nib.load(args.mask),
-                            dtype=bool) if args.mask else None
+    sh_simg = StatefulImage.load(args.in_sh, is_orientation=True)
+    sh_simg.to_ras()
+    data = sh_simg.get_fdata()
+
+    mask = None
+    if args.mask:
+        mask_simg = StatefulImage.load(args.mask)
+        mask_simg.reorient(sh_simg.axcodes)
+        mask = get_data_as_mask(mask_simg, dtype=bool)
 
     # validate number of processes
     nbr_processes = validate_nbr_processes(parser, args)
@@ -105,7 +110,8 @@ def main():
                              nbr_processes=nbr_processes)
     t1 = time.perf_counter()
     logging.info('Fitting done in (s): {0}'.format(t1 - t0))
-    nib.save(nib.Nifti1Image(bingham, sh_im.affine), args.out_bingham)
+    StatefulImage.create_from(bingham, sh_simg, is_orientation=True).save(
+        args.out_bingham)
 
 
 if __name__ == '__main__':

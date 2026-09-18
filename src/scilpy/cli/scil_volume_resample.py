@@ -101,8 +101,8 @@ def main():
     if args.ref:
         ref_img = StatefulImage.load(args.ref)
 
-        # Must not verify that headers are compatible. But can verify that, at
-        # least, the first columns of their affines are compatible.
+        # Must not verify full header compatibility, but must verify that
+        # the orientation/rotation matrices are compatible.
         img_rot = StatefulImage._get_rotation_matrix(simg.affine)
         ref_rot = StatefulImage._get_rotation_matrix(ref_img.affine)
 

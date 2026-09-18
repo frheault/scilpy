@@ -1,19 +1,15 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-from scilpy.reconst.fiber_coherence import (compute_coherence_table_for_transforms,
+from scilpy.reconst.fiber_coherence import (generate_coherence_transforms,
                                             compute_fiber_coherence)
 
 
-def test_compute_fiber_coherence_fliptable():
-    # Just checking that we get 24 values.
+def test_generate_coherence_transforms():
+    # Just checking that we get the 24 axis permutation/flip transforms.
     # See below for the real tests.
-    directions = np.zeros((3, 3, 5, 3), dtype=float)
-    fa = np.zeros((3, 3, 5), dtype=float)
-    coherence, transforms = compute_coherence_table_for_transforms(
-        directions, fa)
-    assert len(coherence) == 24
-    assert len(transforms) == 24
+    transforms = generate_coherence_transforms()
+    assert transforms.shape == (24, 3, 3)
 
 
 def test_compute_fiber_coherence():

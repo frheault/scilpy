@@ -30,6 +30,9 @@ References:
 ------------------------------------------------------------------------------
 """
 
+# TODO: Migrate to StatefulImage once Bingham/fixel support is finalized
+# (split_branch_d_stateful_bingham_fixel).
+
 import nibabel as nib
 import time
 import argparse

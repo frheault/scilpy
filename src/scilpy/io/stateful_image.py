@@ -238,7 +238,9 @@ class StatefulImage(nib.Nifti1Image):
 
         # Handle 5D data
         if len(original_shape) == 5:
-            # We treat each "lobe" independently for rotation if it's not SH
+            # Peaks: flatten (X, Y, Z, N_peaks, 3) to (X, Y, Z, N_peaks * 3)
+            # for rotation. Bingham-like data (last dim 7) is handled above
+            # and never reaches this branch.
             data = data.reshape(original_shape[0:3] + (-1,))
 
         last_dim = data.shape[-1]

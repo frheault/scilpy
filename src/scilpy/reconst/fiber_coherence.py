@@ -39,50 +39,15 @@ def generate_coherence_transforms():
     return transforms
 
 
-def compute_coherence_table_for_transforms(directions, values):
-    """
-    Compute fiber coherence indexes for all possible axes permutations/flips
-    (ex, originating from a flip in the gradient table).
-
-    The mathematics are presented in :
-    [1] Schilling et al. A fiber coherence index for quality control of B-table
-    orientation in diffusion MRI scans. Magn Reson Imaging. 2019 May;58:82-89.
-    doi: 10.1016/j.mri.2019.01.018.
-
-    Parameters
-    ----------
-    directions: ndarray (x, y, z, 3)
-        Principal fiber orientation for each voxel.
-    values: ndarray (x, y, z)
-        Anisotropy measure for each voxel (e.g. FA map).
-
-    Returns
-    -------
-    coherence: list
-        Fiber coherence value for each permutation/flip.
-    transforms: list
-        Transform representing each permutation/flip, in the same
-        order as `coherence` list.
-    """
-    transforms = generate_coherence_transforms()
-
-    # Compute the coherence for each one.
-    coherence = []
-    for t in transforms:
-        index = compute_fiber_coherence(directions.dot(t), values)
-        coherence.append(index)
-    return coherence, list(transforms)
-
-
 def find_best_gradient_correction(data, bvals, bvecs, fa, mask,
                                   b0_threshold, verbose=True):
     """
     Refit the DTI model under all 24 axis permutations/flips of bvecs,
     returning the transform that maximizes fiber coherence.
 
-    Contrary to compute_coherence_table_for_transforms, which rotates
-    already-fitted peaks, this refits the tensor model from scratch for
-    each candidate transform, which is more robust but more expensive.
+    Refits the tensor model from scratch for each candidate transform,
+    rather than rotating already-fitted peaks, which is more robust but
+    more expensive.
 
     Parameters
     ----------

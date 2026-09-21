@@ -225,7 +225,7 @@ def verify_bval_spread(bvals, b0_threshold):
         if len(shells_centroids) > 0 else 0
     max_non_b0_delta = np.ediff1d(shells_centroids)[0] \
         if len(shells_centroids) > 1 else 0
-    if max_non_b0_delta >= min_non_b0_shell:
+    if max_non_b0_delta > min_non_b0_shell:
         logging.warning(
             'Your shells seem to be very far apart (max delta: {}, '
             'min non-b0 shell: {}). This might cause problems for the '

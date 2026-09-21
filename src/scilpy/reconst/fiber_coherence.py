@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 import itertools
+
+from dipy.core.gradients import gradient_table
+from dipy.reconst.dti import TensorModel
 import numpy as np
+from tqdm import tqdm
 
 
 NB_FLIPS = 4
@@ -14,34 +18,16 @@ ALL_NEIGHBORS = ALL_NEIGHBORS.T.reshape((27, 3)) - 1
 ALL_NEIGHBORS = np.delete(ALL_NEIGHBORS, 13, axis=0)
 
 
-def compute_coherence_table_for_transforms(directions, values):
+def generate_coherence_transforms():
     """
-    Compute fiber coherence indexes for all possible axes permutations/flips
-    (ex, originating from a flip in the gradient table).
-
-    The mathematics are presented in :
-    [1] Schilling et al. A fiber coherence index for quality control of B-table
-    orientation in diffusion MRI scans. Magn Reson Imaging. 2019 May;58:82-89.
-    doi: 10.1016/j.mri.2019.01.018.
-
-    Parameters
-    ----------
-    directions: ndarray (x, y, z, 3)
-        Principal fiber orientation for each voxel.
-    values: ndarray (x, y, z)
-        Anisotropy measure for each voxel (e.g. FA map).
+    Generate the 24 possible axis permutation/flip transforms for a
+    gradient table (used to check for sign flips or axes swaps).
 
     Returns
     -------
-    coherence: list
-        Fiber coherence value for each permutation/flip.
-    transforms: list
-        Transform representing each permutation/flip, in the same
-        order as `coherence` list.
+    transforms: ndarray (24, 3, 3)
+        One 3x3 transform per permutation/flip.
     """
-    # Generate transforms for 24 possible permutation/flips of
-    # gradient directions. (Reminder. We want to verify if there was possibly
-    # an error in the gradient table).
     permutations = list(itertools.permutations([0, 1, 2]))
     transforms = np.zeros((len(permutations)*NB_FLIPS, 3, 3))
     for i in range(len(permutations)):
@@ -50,13 +36,67 @@ def compute_coherence_table_for_transforms(directions, values):
             flip = np.eye(3)
             flip[ii, ii] = -1
             transforms[ii+i*NB_FLIPS+1] = transforms[i*NB_FLIPS].dot(flip)
+    return transforms
 
-    # Compute the coherence for each one.
-    coherence = []
-    for t in transforms:
-        index = compute_fiber_coherence(directions.dot(t), values)
-        coherence.append(index)
-    return coherence, list(transforms)
+
+def find_best_gradient_correction(data, bvals, bvecs, fa, mask,
+                                  b0_threshold, verbose=True):
+    """
+    Refit the DTI model under all 24 axis permutations/flips of bvecs,
+    returning the transform that maximizes fiber coherence.
+
+    Refits the tensor model from scratch for each candidate transform,
+    rather than rotating already-fitted peaks, which is more robust but
+    more expensive.
+
+    Parameters
+    ----------
+    data: ndarray (X, Y, Z, N)
+        DWI data.
+    bvals: ndarray
+        B-values.
+    bvecs: ndarray (N, 3)
+        B-vectors to validate.
+    fa: ndarray (X, Y, Z)
+        FA map, used to weight the coherence computation.
+    mask: ndarray (X, Y, Z), optional
+        Voxels to fit (e.g. a high-FA mask). If None, all voxels are used.
+    b0_threshold: float
+        B0 threshold used to rebuild the gradient table for each candidate.
+    verbose: bool, optional
+        If True, show a progress bar. Default: True.
+
+    Returns
+    -------
+    best_t: ndarray (3, 3)
+        Best-scoring transform (identity if bvecs were already correct).
+    best_coherence: float
+        Coherence value obtained with best_t.
+    """
+    transforms = generate_coherence_transforms()
+    min_signal = np.min(data[data > 0])
+
+    best_coherence = -1
+    best_t = None
+    iterator = tqdm(transforms) if verbose else transforms
+    for t in iterator:
+        bvecs_candidate = np.dot(bvecs, t)
+        gtab_candidate = gradient_table(bvals, bvecs=bvecs_candidate,
+                                        b0_threshold=b0_threshold)
+        tenmodel_candidate = TensorModel(gtab_candidate, fit_method='WLS',
+                                         min_signal=min_signal)
+        tenfit_candidate = tenmodel_candidate.fit(data, mask=mask)
+
+        # evecs is (X, Y, Z, 3, 3), evecs[..., 0] is the first eigenvector
+        # (principal direction).
+        peaks = tenfit_candidate.evecs[..., 0]
+        coherence = compute_fiber_coherence(peaks, fa)
+
+        if coherence > best_coherence:
+            best_coherence = coherence
+            best_t = t
+
+    return best_t, best_coherence
 
 
 def compute_fiber_coherence(peaks, values):

@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
+import logging
+
 import numpy as np
 
 from scilpy.gradients.bvec_bval_tools import (
-    check_b0_threshold, check_shells_frf, identify_shells, is_normalized_bvecs,
+    check_b0_threshold, identify_shells, is_normalized_bvecs,
     flip_gradient_axis, find_flip_swap_from_order, normalize_bvecs,
-    round_bvals_to_shell, str_to_axis_index, swap_gradient_axis)
+    round_bvals_to_shell, str_to_axis_index, swap_gradient_axis,
+    verify_bval_range, verify_bval_spread)
 
 bvecs = np.asarray([[1.0, 1.0, 1.0],
                     [1.0, 0.0, 1.0],
@@ -126,15 +129,52 @@ def test_round_bvals_to_shell():
     assert not success
 
 
-def test_check_shells_frf():
-    # Test case where shells are close enough
-    bvals = np.asarray([0, 0, 1000, 1000, 2000, 2000])
-    check_shells_frf(bvals, b0_threshold=20)
+def test_verify_bval_spread(caplog):
+    # Test case where shells are close enough (no warning)
+    with caplog.at_level(logging.WARNING):
+        bvals = np.asarray([0, 0, 1000, 1000, 2000, 2000])
+        verify_bval_spread(bvals, b0_threshold=20)
+    assert "far apart" not in caplog.text
+    caplog.clear()
 
-    # Test case where shells are too far apart
-    bvals = np.asarray([0, 0, 1000, 1000, 3000, 3000])
-    check_shells_frf(bvals, b0_threshold=20)
+    # Test case where shells are too far apart (warning)
+    with caplog.at_level(logging.WARNING):
+        bvals = np.asarray([0, 0, 1000, 1000, 3000, 3000])
+        verify_bval_spread(bvals, b0_threshold=20)
+    assert "far apart" in caplog.text
+    caplog.clear()
 
-    # Test case with no non-b0 shells
-    bvals = np.asarray([0, 0, 10, 10])
-    check_shells_frf(bvals, b0_threshold=20)
+    # Test case with no non-b0 shells (no warning)
+    with caplog.at_level(logging.WARNING):
+        bvals = np.asarray([0, 0, 10, 10])
+        verify_bval_spread(bvals, b0_threshold=20)
+    assert "far apart" not in caplog.text
+
+
+def test_verify_bval_range(caplog):
+    # Test case where max b-value is low and sh_order is high (should warn)
+    with caplog.at_level(logging.WARNING):
+        bvals = np.asarray([0, 0, 700, 700, 700, 700])
+        verify_bval_range(bvals, b0_threshold=20, sh_order=8)
+    assert "relatively low" in caplog.text
+    caplog.clear()
+
+    # Test case where max b-value is low but sh_order is not high (no warn)
+    with caplog.at_level(logging.WARNING):
+        bvals = np.asarray([0, 0, 700, 700, 700, 700])
+        verify_bval_range(bvals, b0_threshold=20, sh_order=4)
+    assert "relatively low" not in caplog.text
+    caplog.clear()
+
+    # Test case where max b-value is high enough (no warn)
+    with caplog.at_level(logging.WARNING):
+        bvals = np.asarray([0, 0, 1000, 1000, 1000, 1000])
+        verify_bval_range(bvals, b0_threshold=20, sh_order=8)
+    assert "relatively low" not in caplog.text
+    caplog.clear()
+
+    # Test case with no non-b0 shells (no warn)
+    with caplog.at_level(logging.WARNING):
+        bvals = np.asarray([0, 0, 10, 10])
+        verify_bval_range(bvals, b0_threshold=20, sh_order=8)
+    assert "relatively low" not in caplog.text

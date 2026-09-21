@@ -4,7 +4,7 @@ from dipy.io.utils import get_reference_info
 import json
 import nibabel.orientations as ornt
 import numpy as np
-from numpy.lib.index_tricks import r_ as row
+from numpy import r_ as row
 import pickle
 
 

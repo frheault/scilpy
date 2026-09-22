@@ -73,12 +73,14 @@ def prepare_data_for_actors(dwi_filename, bvals_filename, bvecs_filename,
     bvecs = dwi_simg.world_bvecs
 
     # target_template_filename can be a file path or an already-loaded
-    # StatefulImage.
+    # StatefulImage. to_ras() is a no-op if it's already RAS, so calling it
+    # unconditionally here guards against a caller passing in an
+    # already-loaded StatefulImage that has not been reoriented yet.
     if isinstance(target_template_filename, StatefulImage):
         target_template_simg = target_template_filename
     else:
         target_template_simg = StatefulImage.load(target_template_filename)
-        target_template_simg.to_ras()
+    target_template_simg.to_ras()
 
     target_template_data = target_template_simg.get_fdata(dtype=np.float32)
     target_template_affine = target_template_simg.affine

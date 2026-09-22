@@ -38,18 +38,40 @@ def test_non_ras_viz_bingham_fit(script_runner, monkeypatch):
     img = nib.load(in_dummy)
     data = img.get_fdata(dtype=np.float32)
 
+    # Save a RAS copy of the exact same anatomy, used below as the ground
+    # truth to compare the LAS render against.
+    aff_ras = np.diag([2.0, 2.0, 2.0, 1.0])
+    nib.save(nib.Nifti1Image(data, aff_ras), 'bingham_ras.nii.gz')
+
     # Save LAS copy
     aff_las = np.diag([-2.0, 2.0, 2.0, 1.0])
     aff_las[0, 3] = 20.0
     data_las = data[::-1].copy()
     nib.save(nib.Nifti1Image(data_las, aff_las), 'bingham_las.nii.gz')
 
-    out = os.path.join(tmp_dir.name, 'test_bingham_las.png')
-    ret = script_runner.run(['scil_viz_bingham_fit', 'bingham_las.nii.gz',
-                             '--silent', '--output', out])
-    assert ret.success
-    assert os.path.exists(out)
+    out_ras = os.path.join(tmp_dir.name, 'test_bingham_ras.png')
+    ret_ras = script_runner.run(['scil_viz_bingham_fit', 'bingham_ras.nii.gz',
+                                 '--silent', '--output', out_ras])
+    assert ret_ras.success
 
-    # Assert non-trivial pixel variance to confirm glyphs are drawn
-    rendered = np.asarray(Image.open(out))
-    assert rendered.var() > 10.0
+    out_las = os.path.join(tmp_dir.name, 'test_bingham_las.png')
+    ret_las = script_runner.run(['scil_viz_bingham_fit', 'bingham_las.nii.gz',
+                                 '--silent', '--output', out_las])
+    assert ret_las.success
+    assert os.path.exists(out_las)
+
+    rendered_ras = np.asarray(Image.open(out_ras)).astype(np.float32)
+    rendered_las = np.asarray(Image.open(out_las)).astype(np.float32)
+
+    # Assert non-trivial pixel variance to confirm glyphs are drawn at all.
+    assert rendered_las.var() > 10.0
+
+    # RAS and LAS describe the exact same anatomy on different on-disk
+    # grids. If orientation/rotation is correctly applied before rendering,
+    # both renders should be visually near-identical. Before the fix, the
+    # LAS render ignored rotation/scale entirely and would not match.
+    diff = np.abs(rendered_ras - rendered_las)
+    assert diff.mean() < 5.0, (
+        "LAS and RAS renders of the same data differ too much (mean abs "
+        "diff = {:.2f}); orientation may not be applied correctly."
+        .format(diff.mean()))

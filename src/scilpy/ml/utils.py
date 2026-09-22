@@ -1,5 +1,5 @@
-import numpy as np
 from dipy.utils.optpkg import optional_package
+import numpy as np
 
 IMPORT_ERROR_MSG = "PyTorch 2.1.2 is required to run this script. Please " + \
                    "install it first. See the official website for more " + \
@@ -19,5 +19,5 @@ def to_numpy(tensor: torch.Tensor, dtype=np.float32) -> np.ndarray:
     """ Helper function to convert a torch GPU tensor
     to numpy.
     """
-
-    return tensor.cpu().numpy().astype(dtype)
+    # Detach removes gradient tracking. Float conversion allows NumPy export.
+    return tensor.detach().cpu().float().numpy().astype(dtype)

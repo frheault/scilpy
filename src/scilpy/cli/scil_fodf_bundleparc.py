@@ -40,6 +40,7 @@ import os
 from argparse import RawTextHelpFormatter
 from functools import partial
 
+from scilpy.io.stateful_image import StatefulImage
 from scilpy.io.utils import (
     assert_inputs_exist, assert_output_dirs_exist_and_empty,
     add_overwrite_arg, add_verbose_arg)
@@ -66,7 +67,8 @@ def _build_arg_parser():
         formatter_class=RawTextHelpFormatter)
 
     parser.add_argument('in_fodf',
-                        help='Input fODF volume in nifti format. ')
+                        help='Input fODF volume in nifti format '
+                             '(descoteaux07 basis, LAS orientation). ')
     parser.add_argument('--out_prefix', default='',
                         help='Output file prefix. Default is nothing. ')
     parser.add_argument('--out_dir', default='bundleparc',
@@ -121,6 +123,20 @@ def main():
 
     logging.getLogger().setLevel(logging.getLevelName(args.verbose))
 
+    fodf_in = nib.load(args.in_fodf)
+    if len(fodf_in.shape) != 4:
+        parser.error(
+            f"Input fODF volume must be 4D (got {len(fodf_in.shape)}D).")
+
+    axcodes = nib.orientations.aff2axcodes(fodf_in.affine)
+    if axcodes != ('L', 'A', 'S'):
+        parser.error(
+            f"BundleParc expects fODF input in LAS orientation (stride "
+            f"-1,2,3,4, Tractoflow convention). Got {axcodes}. Reorient "
+            f"with scil_volume_modify_voxel_order first.")
+
+    logging.warning("BundleParc expects fODF in 'descoteaux07' SH basis.")
+
     if not os.path.exists(args.checkpoint):
         download_weights(args.checkpoint)
 
@@ -128,7 +144,6 @@ def main():
     # Load the model
     model = get_model(args.checkpoint, device, {'pretrained': True})
 
-    fodf_in = nib.load(args.in_fodf)
     X, Y, Z, C = fodf_in.get_fdata(dtype=np.float32).shape
 
     # TODO in future release: infer these from model
@@ -143,7 +158,10 @@ def main():
                         f'Only the first {n_coefs} will be used.')
 
     # Resampling volume to fit the model's input at training time
-    resampled_img = resample_volume(fodf_in, ref_img=None,
+    # resample_volume requires a StatefulImage. No reorientation occurs
+    # because LAS is verified above.
+    fodf_simg = StatefulImage.convert_to_simg(fodf_in)
+    resampled_img = resample_volume(fodf_simg, ref_img=None,
                                     volume_shape=[args.volume_size],
                                     iso_min=False,
                                     voxel_res=None,
@@ -176,14 +194,19 @@ def main():
         half_precision=args.half_precision,
         verbose=logging.getLogger().getEffectiveLevel() < logging.WARNING
     ):
-        # Format the output as a nifti image
+        # Format the output as a nifti image. Set dtype explicitly: the
+        # label functions return uint8/uint16 labels, but resampled_img's
+        # header still has the input fODF's float dtype.
         label_img = nib.Nifti1Image(y_hat_label,
                                     resampled_img.affine,
-                                    resampled_img.header,
+                                    header=resampled_img.header,
                                     dtype=y_hat_label.dtype)
+        # resample_volume requires a StatefulImage. No reorientation
+        # occurs because LAS is verified above.
+        label_simg = StatefulImage.convert_to_simg(label_img)
 
         # Resampling volume to fit the original image size
-        resampled_label = resample_volume(label_img, ref_img=None,
+        resampled_label = resample_volume(label_simg, ref_img=None,
                                           volume_shape=[X, Y, Z],
                                           iso_min=False,
                                           voxel_res=None,

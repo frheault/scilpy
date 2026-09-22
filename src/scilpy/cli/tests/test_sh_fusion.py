@@ -71,6 +71,8 @@ def test_sh_fusion_rejects_incompatible_third_file(script_runner, monkeypatch):
     against the first one, not just a pairwise/first-two check. Uses a
     third file with a different shape to confirm this.
     """
+    # Isolate this test's relative-path output files in the shared scratch
+    # dir, same as every other test in this file.
     monkeypatch.chdir(os.path.expanduser(tmp_dir.name))
     in_sh_1 = os.path.join(SCILPY_HOME, 'processing', 'sh_1000.nii.gz')
     in_sh_2 = os.path.join(SCILPY_HOME, 'processing', 'sh_3000.nii.gz')

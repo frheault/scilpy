@@ -90,6 +90,8 @@ def test_non_ras_fodf_max_in_ventricles_with_mask(script_runner, monkeypatch):
     reorientation were broken, so use an asymmetric (left-half-only) mask
     to actually exercise it.
     """
+    # Isolate this test's relative-path output files in the shared scratch
+    # dir, same as every other test in this file.
     monkeypatch.chdir(os.path.expanduser(tmp_dir.name))
     in_fodf = os.path.join(SCILPY_HOME, 'processing', 'fodf.nii.gz')
     in_fa = os.path.join(SCILPY_HOME, 'processing', 'fa.nii.gz')

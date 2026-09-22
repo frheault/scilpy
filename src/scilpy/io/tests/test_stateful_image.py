@@ -329,6 +329,9 @@ def test_load_preserves_extra_and_file_map_when_reoriented(monkeypatch):
             loaded.extra['custom_key'] = 'custom_val'
             return loaded
 
+        # extra is in-memory-only (never written to the NIfTI file itself),
+        # so intercept nib.load() to inject it before StatefulImage.load()
+        # runs its reorientation logic.
         monkeypatch.setattr(nib, 'load', mock_load)
 
         loaded_simg = StatefulImage.load(file_path)

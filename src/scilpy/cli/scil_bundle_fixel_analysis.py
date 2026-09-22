@@ -96,13 +96,15 @@ The script produces various output:
 """
 
 import argparse
-import os
-
-import nibabel as nib
-import numpy as np
 import logging
+import os
 from pathlib import Path
 
+import numpy as np
+from dipy.io.streamline import load_tractogram
+
+from scilpy.io.stateful_image import StatefulImage
+from scilpy.io.streamlines import rebind_sft_to_simg
 from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
                              assert_headers_compatible, assert_inputs_exist,
                              add_verbose_arg,
@@ -157,7 +159,7 @@ def _build_arg_parser():
                          'this value will pass the relative threshold test. '
                          '\nMust be between 0 and 1 [%(default)s].')
 
-    g1.add_argument('--norm', default='voxel', nargs='+', type=str,
+    g1.add_argument('--norm', default=['voxel'], nargs='+', type=str,
                     choices=['fixel', 'voxel', 'none'],
                     help='Way of normalizing the density maps. If fixel, '
                          'will normalize the maps per fixel, \nin each voxel. '
@@ -251,11 +253,9 @@ def main():
             bundles_names.append(Path(bundle).name.split(".")[0])
 
     ### Load the data
-    # The bundles will be loaded in the loop below
     logging.info("Loading data.")
-    peaks_img = nib.load(args.in_peaks)
-    peaks = peaks_img.get_fdata()
-    affine = peaks_img.affine
+    peaks_simg = StatefulImage.load(args.in_peaks, is_orientation=True)
+    peaks = peaks_simg.to_voxel_direction(is_peaks=True)
 
     # Compute NuFo single-fiber from peaks
     if args.single_bundle:
@@ -263,9 +263,18 @@ def main():
         no_second_peak = np.sum(peaks[..., 3:6], axis=-1) == 0
         nufo_sf = np.logical_and(is_first_peak, no_second_peak)
 
+    # Rebind each bundle to the peaks image grid.
+    # bbox_valid_check=False allows streamline points near the volume edge after grid reorientation.
+    sfts = []
+    for bundle in args.in_bundles:
+        sft = load_tractogram(bundle, 'same', bbox_valid_check=False)
+        sft = rebind_sft_to_simg(sft, peaks_simg)
+        sft.remove_invalid_streamlines()
+        sfts.append(sft)
+
     # Compute fixel density (FD) maps and masks
     logging.info("Computing fixel density for all bundles.")
-    fd_maps_original = fixel_density(peaks, args.in_bundles, args.dps_key,
+    fd_maps_original = fixel_density(peaks, sfts, args.dps_key,
                                      args.max_theta,
                                      nbr_processes=args.nbr_processes)
 
@@ -298,70 +307,91 @@ def main():
             # Making sure we also have single-fiber voxels only
             one_bundle_per_voxel *= nufo_sf
             # Save a single-fiber single-bundle mask for the whole WM
-            nib.save(
-                nib.Nifti1Image(one_bundle_per_voxel.astype(np.uint8), affine),
+            StatefulImage.create_from(
+                one_bundle_per_voxel.astype(np.uint8), peaks_simg,
+                is_orientation=False).save(
                 "{}_{}_WM{}".format(sb_mask_name, norm_name, suffix))
 
         for i, bundle_n in enumerate(bundles_names):
             bundle_suffix = '{}_{}{}'.format(norm_name, bundle_n, suffix)
 
             if args.split_bundles:  # Save the maps and masks for each bundle
-                nib.save(nib.Nifti1Image(fd_maps[..., i], affine),
-                         "{}_{}".format(fd_map_name, bundle_suffix))
-                nib.save(nib.Nifti1Image(fd_masks[..., i], affine),
-                         "{}_{}".format(fd_mask_name, bundle_suffix))
+                StatefulImage.create_from(
+                    fd_maps[..., i], peaks_simg, is_orientation=False).save(
+                    "{}_{}".format(fd_map_name, bundle_suffix))
+                StatefulImage.create_from(
+                    fd_masks[..., i], peaks_simg, is_orientation=False).save(
+                    "{}_{}".format(fd_mask_name, bundle_suffix))
                 if norm != "fixel":  # If fixel, voxel maps mean nothing
-                    nib.save(nib.Nifti1Image(vd_maps[..., i], affine),
-                             "{}_{}".format(vd_map_name, bundle_suffix))
+                    StatefulImage.create_from(
+                        vd_maps[..., i], peaks_simg,
+                        is_orientation=False).save(
+                        "{}_{}".format(vd_map_name, bundle_suffix))
                 bundle_mask = vd_masks[..., i].astype(np.uint8)
-                nib.save(nib.Nifti1Image(bundle_mask, affine),
-                         "{}_{}".format(vd_mask_name, bundle_suffix))
+                StatefulImage.create_from(
+                    bundle_mask, peaks_simg, is_orientation=False).save(
+                    "{}_{}".format(vd_mask_name, bundle_suffix))
 
             if args.single_bundle:
                 # Save a single-fiber single-bundle mask for each bundle
                 bundle_mask = fd_masks[..., 0, i] * one_bundle_per_voxel
-                nib.save(nib.Nifti1Image(bundle_mask.astype(np.uint8), affine),
-                         "{}_{}".format(sb_mask_name, bundle_suffix))
+                StatefulImage.create_from(
+                    bundle_mask.astype(np.uint8), peaks_simg,
+                    is_orientation=False).save(
+                    "{}_{}".format(sb_mask_name, bundle_suffix))
 
         if args.split_fixels:  # Save the maps and masks for each fixel
             for i in range(5):
                 fixel_suffix = '{}_f{}{}'.format(norm_name, i + 1, suffix)
 
-                nib.save(nib.Nifti1Image(fd_maps[..., i, :], affine),
-                         "{}_{}".format(fd_map_name, fixel_suffix))
-                nib.save(nib.Nifti1Image(fd_masks[..., i, :], affine),
-                         "{}_{}".format(fd_mask_name, fixel_suffix))
+                StatefulImage.create_from(
+                    fd_maps[..., i, :], peaks_simg,
+                    is_orientation=False).save(
+                    "{}_{}".format(fd_map_name, fixel_suffix))
+                StatefulImage.create_from(
+                    fd_masks[..., i, :], peaks_simg,
+                    is_orientation=False).save(
+                    "{}_{}".format(fd_mask_name, fixel_suffix))
                 if norm != "fixel":  # If fixel, voxel maps mean nothing
-                    nib.save(nib.Nifti1Image(vd_maps[..., i, :], affine),
-                             "{}_{}".format(vd_map_name, fixel_suffix))
+                    StatefulImage.create_from(
+                        vd_maps[..., i, :], peaks_simg,
+                        is_orientation=False).save(
+                        "{}_{}".format(vd_map_name, fixel_suffix))
                 bundle_mask = vd_masks[..., i, :].astype(np.uint8)
-                nib.save(nib.Nifti1Image(bundle_mask, affine),
-                         "{}_{}".format(vd_mask_name, fixel_suffix))
+                StatefulImage.create_from(
+                    bundle_mask, peaks_simg, is_orientation=False).save(
+                    "{}_{}".format(vd_mask_name, fixel_suffix))
 
         norm_suffix = '{}{}'.format(norm_name, suffix)
 
         # Save full fixel density maps, all fixels and bundles combined
-        nib.save(nib.Nifti1Image(fd_maps, affine),
-                 "{}s_{}".format(fd_map_name, norm_suffix))
+        StatefulImage.create_from(
+            fd_maps, peaks_simg, is_orientation=False).save(
+            "{}s_{}".format(fd_map_name, norm_suffix))
 
         # Save full fixel density masks, all fixels and bundles combined
-        nib.save(nib.Nifti1Image(fd_masks, affine),
-                 "{}s_{}".format(fd_mask_name, norm_suffix))
+        StatefulImage.create_from(
+            fd_masks, peaks_simg, is_orientation=False).save(
+            "{}s_{}".format(fd_mask_name, norm_suffix))
 
         # Save full voxel density maps and masks
         if norm != "fixel":  # If fixel, voxel maps mean nothing
-            nib.save(nib.Nifti1Image(vd_maps, affine),
-                     "{}s_{}".format(vd_map_name, norm_suffix))
-        nib.save(nib.Nifti1Image(vd_masks.astype(np.uint8), affine),
-                 "{}s_{}".format(vd_mask_name, norm_suffix))
+            StatefulImage.create_from(
+                vd_maps, peaks_simg, is_orientation=False).save(
+                "{}s_{}".format(vd_map_name, norm_suffix))
+        StatefulImage.create_from(
+            vd_masks.astype(np.uint8), peaks_simg, is_orientation=False).save(
+            "{}s_{}".format(vd_mask_name, norm_suffix))
 
         # Save number of bundles per fixel and per voxel
-        nib.save(nib.Nifti1Image(nb_bundles_per_fixel.astype(np.uint8),
-                                 affine),
-                 "{}_per_fixel_{}".format(nb_bundles_name, norm_suffix))
-        nib.save(nib.Nifti1Image(nb_bundles_per_voxel.astype(np.uint8),
-                                 affine),
-                 "{}_per_voxel_{}".format(nb_bundles_name, norm_suffix))
+        StatefulImage.create_from(
+            nb_bundles_per_fixel.astype(np.uint8), peaks_simg,
+            is_orientation=False).save(
+            "{}_per_fixel_{}".format(nb_bundles_name, norm_suffix))
+        StatefulImage.create_from(
+            nb_bundles_per_voxel.astype(np.uint8), peaks_simg,
+            is_orientation=False).save(
+            "{}_per_voxel_{}".format(nb_bundles_name, norm_suffix))
 
     # Save bundles lookup table to know the order of the bundles
     bundles_idx = np.arange(0, len(bundles_names), 1)

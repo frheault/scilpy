@@ -32,8 +32,9 @@ import argparse
 import logging
 
 from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
-                             add_verbose_arg, assert_inputs_exist,
-                             assert_outputs_exist, validate_nbr_processes,
+                             add_sh_basis_args, add_verbose_arg,
+                             assert_inputs_exist, assert_outputs_exist,
+                             parse_sh_basis_arg, validate_nbr_processes,
                              assert_headers_compatible)
 from scilpy.io.image import get_data_as_mask
 from scilpy.io.stateful_image import StatefulImage
@@ -70,6 +71,7 @@ def _build_arg_parser():
                    help='Optional mask file. Only SH inside'
                         ' the mask are fitted.')
 
+    add_sh_basis_args(p)
     add_verbose_arg(p)
     add_processes_arg(p)
     add_overwrite_arg(p)
@@ -86,7 +88,10 @@ def main():
     assert_outputs_exist(parser, args, args.out_bingham)
     assert_headers_compatible(parser, args.in_sh, args.mask)
 
-    sh_simg = StatefulImage.load(args.in_sh, is_orientation=True)
+    sh_basis, is_legacy = parse_sh_basis_arg(args)
+
+    sh_simg = StatefulImage.load(args.in_sh, is_orientation=True,
+                                 sh_basis=sh_basis, is_legacy=is_legacy)
     sh_simg.to_ras()
     data = sh_simg.get_fdata()
 
@@ -107,7 +112,9 @@ def main():
                              min_sep_angle=args.min_sep_angle,
                              max_fit_angle=args.max_fit_angle,
                              mask=mask,
-                             nbr_processes=nbr_processes)
+                             nbr_processes=nbr_processes,
+                             sh_basis=sh_basis,
+                             is_legacy=is_legacy)
     t1 = time.perf_counter()
     logging.info('Fitting done in (s): {0}'.format(t1 - t0))
     StatefulImage.create_from(bingham, sh_simg, is_orientation=True).save(

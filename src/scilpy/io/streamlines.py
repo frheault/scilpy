@@ -136,7 +136,9 @@ def rebind_sft_to_simg(sft, simg):
         Space.VOX / Origin.CORNER.
     """
     sft.to_rasmm()
-    sft = StatefulTractogram(sft.streamlines, simg, Space.RASMM)
+    sft = StatefulTractogram(sft.streamlines, simg, Space.RASMM,
+                             data_per_point=sft.data_per_point,
+                             data_per_streamline=sft.data_per_streamline)
     sft.to_vox()
     sft.to_corner()
     return sft

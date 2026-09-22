@@ -63,3 +63,27 @@ def test_non_ras_sh_fusion(script_runner, monkeypatch):
     out_r = nib.load('out_ras.nii.gz').get_fdata()
     out_l = img_l.get_fdata()
     assert np.allclose(out_r, out_l[::-1], atol=1e-5)
+
+
+def test_sh_fusion_rejects_incompatible_third_file(script_runner, monkeypatch):
+    """
+    assert_headers_compatible(parser, args.in_shs) must check every input
+    against the first one, not just a pairwise/first-two check. Uses a
+    third file with a different shape to confirm this.
+    """
+    monkeypatch.chdir(os.path.expanduser(tmp_dir.name))
+    in_sh_1 = os.path.join(SCILPY_HOME, 'processing', 'sh_1000.nii.gz')
+    in_sh_2 = os.path.join(SCILPY_HOME, 'processing', 'sh_3000.nii.gz')
+
+    data1 = nib.load(in_sh_1).get_fdata(dtype=np.float32)
+    affine = nib.load(in_sh_1).affine
+
+    # Third file: same affine, but a cropped shape, so it is incompatible
+    # with in_sh_1/in_sh_2 even though the first two are compatible.
+    bad_shape_data = data1[:-1]
+    nib.save(nib.Nifti1Image(bad_shape_data, affine),
+             'sh3_bad_shape.nii.gz')
+
+    ret = script_runner.run(['scil_sh_fusion', in_sh_1, in_sh_2,
+                             'sh3_bad_shape.nii.gz', 'out_should_fail.nii.gz'])
+    assert not ret.success

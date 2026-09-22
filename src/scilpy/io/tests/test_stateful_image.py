@@ -304,3 +304,34 @@ def test_load_preserves_extra_and_file_map(monkeypatch):
         loaded_simg = StatefulImage.load(file_path)
         assert loaded_simg.extra.get('custom_key') == 'custom_val'
         assert 'image' in loaded_simg.file_map
+
+
+def test_load_preserves_extra_and_file_map_when_reoriented(monkeypatch):
+    """
+    Same as test_load_preserves_extra_and_file_map, but with a non-RAS
+    input so an actual reorientation happens: as_reoriented() drops extra/
+    file_map on its result, so this only passes if load() reads them from
+    the original (pre-reorientation) image.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        shape = (10, 10, 10)
+        affine = np.diag([-1, 1, 1, 1]).astype(np.float32)  # LAS, not RAS
+        data = np.ones(shape, dtype=np.float32)
+        img = nib.Nifti1Image(data, affine)
+
+        file_path = os.path.join(tmpdir, "test_extra_reoriented.nii.gz")
+        nib.save(img, file_path)
+
+        orig_nib_load = nib.load
+
+        def mock_load(fname):
+            loaded = orig_nib_load(fname)
+            loaded.extra['custom_key'] = 'custom_val'
+            return loaded
+
+        monkeypatch.setattr(nib, 'load', mock_load)
+
+        loaded_simg = StatefulImage.load(file_path)
+        assert loaded_simg.axcodes[:3] == ('R', 'A', 'S')
+        assert loaded_simg.extra.get('custom_key') == 'custom_val'
+        assert 'image' in loaded_simg.file_map

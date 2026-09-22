@@ -101,3 +101,26 @@ def test_empty_tractogram_compute_ae(script_runner, tmp_path):
     assert ret.success
     assert os.path.isfile(out_bundle)
     assert os.path.isfile(out_map)
+
+
+def test_empty_tractogram_compute_ae_save_as_color(script_runner, tmp_path):
+    """
+    --save_as_color on an empty tractogram used to crash with an
+    IndexError (add_data_as_color_dpp indexing into an empty array).
+    """
+    affine = np.diag([2.0, 2.0, 2.0, 1.0])
+    peaks_data = np.zeros((8, 8, 8, 15), dtype=np.float32)
+    peaks_path = str(tmp_path / "peaks.nii.gz")
+    peaks_img = nib.Nifti1Image(peaks_data, affine)
+    nib.save(peaks_img, peaks_path)
+
+    sft = StatefulTractogram([], peaks_img, Space.VOX)
+    bundle_path = str(tmp_path / "empty_bundle_color.trk")
+    save_tractogram(sft, bundle_path, False)
+
+    out_bundle = str(tmp_path / "out_bundle_color.trk")
+    ret = script_runner.run(['scil_tractogram_compute_ae', bundle_path,
+                             peaks_path, out_bundle, '--dpp_key', 'AE',
+                             '--save_as_color', '--processes', '1'])
+    assert ret.success
+    assert os.path.isfile(out_bundle)

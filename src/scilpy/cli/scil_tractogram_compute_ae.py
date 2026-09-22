@@ -155,15 +155,14 @@ def main():
     sft.data_per_point[args.dpp_key] = ae_dpp
 
     # Add as color (optional)
-    if args.save_as_color:
-        if len(stacked_ae) == 0:
-            max_cmap = 180
-        else:
-            max_cmap = args.cmap_max if args.cmap_max is not None \
-                else np.max(stacked_ae)
+    if args.save_as_color and len(stacked_ae) == 0:
+        logging.info("Empty tractogram, nothing to color.")
+    elif args.save_as_color:
+        max_cmap = args.cmap_max if args.cmap_max is not None \
+            else np.max(stacked_ae)
         logging.info("Saving colors. The maxium color is assiociated to "
                      "value {}".format(max_cmap))
-         
+
         sft, _, _ = add_data_as_color_dpp(sft, cmap, stacked_ae,
                                           min_cmap=0, max_cmap=max_cmap)
 

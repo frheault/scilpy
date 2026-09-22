@@ -101,10 +101,8 @@ import os
 from pathlib import Path
 
 import numpy as np
-from dipy.io.streamline import load_tractogram
 
 from scilpy.io.stateful_image import StatefulImage
-from scilpy.io.streamlines import rebind_sft_to_simg
 from scilpy.io.utils import (add_overwrite_arg, add_processes_arg,
                              assert_headers_compatible, assert_inputs_exist,
                              add_verbose_arg,
@@ -263,19 +261,13 @@ def main():
         no_second_peak = np.sum(peaks[..., 3:6], axis=-1) == 0
         nufo_sf = np.logical_and(is_first_peak, no_second_peak)
 
-    # Rebind each bundle to the peaks image grid.
-    # bbox_valid_check=False allows streamline points near the volume edge after grid reorientation.
-    sfts = []
-    for bundle in args.in_bundles:
-        sft = load_tractogram(bundle, 'same', bbox_valid_check=False)
-        sft = rebind_sft_to_simg(sft, peaks_simg)
-        sft.remove_invalid_streamlines()
-        sfts.append(sft)
-
-    # Compute fixel density (FD) maps and masks
+    # Compute fixel density (FD) maps and masks. Each bundle is loaded and
+    # rebound to peaks_simg's grid inside fixel_density() itself, so only
+    # one bundle at a time is held in memory per worker process, instead of
+    # pre-loading every bundle here first.
     logging.info("Computing fixel density for all bundles.")
-    fd_maps_original = fixel_density(peaks, sfts, args.dps_key,
-                                     args.max_theta,
+    fd_maps_original = fixel_density(peaks, args.in_bundles, peaks_simg,
+                                     args.dps_key, args.max_theta,
                                      nbr_processes=args.nbr_processes)
 
     for norm in args.norm:

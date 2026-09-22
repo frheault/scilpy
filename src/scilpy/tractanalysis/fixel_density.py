@@ -2,17 +2,28 @@ import itertools
 import multiprocessing
 import numpy as np
 
+from dipy.io.streamline import load_tractogram
+
+from scilpy.io.streamlines import rebind_sft_to_simg
 from scilpy.tractanalysis.voxel_boundary_intersection import\
     subdivide_streamlines_at_voxel_faces
 
 
 def _fixel_density_parallel(args):
-    (peaks, max_theta, dps_key, sft) = args
+    (peaks, max_theta, dps_key, ref, bundle) = args
 
-    return _fixel_density_single_bundle(sft, peaks, max_theta, dps_key)
+    return _fixel_density_single_bundle(bundle, ref, peaks, max_theta,
+                                        dps_key)
 
 
-def _fixel_density_single_bundle(sft, peaks, max_theta, dps_key):
+def _fixel_density_single_bundle(bundle, ref, peaks, max_theta, dps_key):
+    # Bundle is loaded and rebound to ref's grid here, inside the worker,
+    # so multiprocessing streams one bundle into memory per worker instead
+    # of requiring every bundle to be pre-loaded in the parent process.
+    sft = load_tractogram(bundle, 'same', bbox_valid_check=False)
+    sft = rebind_sft_to_simg(sft, ref)
+    sft.remove_invalid_streamlines()
+
     fixel_density_maps = np.zeros((peaks.shape[:-1]) + (5,))
 
     if len(sft) == 0:
@@ -61,7 +72,7 @@ def _fixel_density_single_bundle(sft, peaks, max_theta, dps_key):
     return fixel_density_maps
 
 
-def fixel_density(peaks, sfts, dps_key=None, max_theta=45,
+def fixel_density(peaks, bundles, ref, dps_key=None, max_theta=45,
                   nbr_processes=None):
     """Compute the fixel density map per bundle. Can use parallel processing.
 
@@ -69,8 +80,13 @@ def fixel_density(peaks, sfts, dps_key=None, max_theta=45,
     ----------
     peaks : np.ndarray (x, y, z, 15)
         Five principal fiber orientations for each voxel.
-    sfts : list of StatefulTractogram
-        List of StatefulTractograms rebound to the peaks reference grid.
+    bundles : list of str
+        List of bundle filenames. Each one is loaded and rebound to ref's
+        grid internally (one at a time per worker), instead of requiring
+        the caller to pre-load every bundle.
+    ref : StatefulImage
+        Reference (already reoriented) grid that peaks lives on. Each
+        bundle is rebound to this grid before being processed.
     dps_key : string, optional
         Key to the data_per_streamline to use as weight instead of the number
         of streamlines.
@@ -93,16 +109,18 @@ def fixel_density(peaks, sfts, dps_key=None, max_theta=45,
     # (codecov does not deal well with multiprocessing)
     if nbr_processes == 1:
         results = []
-        for sft in sfts:
+        for bundle in bundles:
             results.append(
-                _fixel_density_single_bundle(sft, peaks, max_theta, dps_key))
+                _fixel_density_single_bundle(bundle, ref, peaks, max_theta,
+                                             dps_key))
     else:
         pool = multiprocessing.Pool(nbr_processes)
         results = pool.map(_fixel_density_parallel,
                            zip(itertools.repeat(peaks),
                                itertools.repeat(max_theta),
                                itertools.repeat(dps_key),
-                               sfts))
+                               itertools.repeat(ref),
+                               bundles))
         pool.close()
         pool.join()
 

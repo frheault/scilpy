@@ -19,5 +19,12 @@ def to_numpy(tensor: torch.Tensor, dtype=np.float32) -> np.ndarray:
     """ Helper function to convert a torch GPU tensor
     to numpy.
     """
-    # Detach removes gradient tracking. Float conversion allows NumPy export.
-    return tensor.detach().cpu().float().numpy().astype(dtype)
+    # Detach removes gradient tracking. bfloat16/float16 have no direct
+    # NumPy export on some PyTorch/CPU combinations, so upcast only those
+    # to float32 first. Other dtypes convert directly, so a caller
+    # requesting dtype=np.float64 does not lose precision to an
+    # unconditional float32 downcast beforehand.
+    tensor = tensor.detach().cpu()
+    if tensor.dtype in (torch.bfloat16, torch.float16):
+        tensor = tensor.float()
+    return tensor.numpy().astype(dtype)

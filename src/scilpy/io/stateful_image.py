@@ -106,9 +106,11 @@ class StatefulImage(nib.Nifti1Image):
         else:
             reoriented_img = img
 
+        # extra/file_map are read from the original img, not reoriented_img:
+        # as_reoriented() does not carry them over onto the new instance.
         simg = cls(reoriented_img.dataobj, reoriented_img.affine,
-                   reoriented_img.header, extra=reoriented_img.extra,
-                   file_map=reoriented_img.file_map,
+                   reoriented_img.header, extra=img.extra,
+                   file_map=img.file_map,
                    original_affine=original_affine,
                    original_dimensions=original_dims,
                    original_voxel_sizes=original_voxel_sizes,
